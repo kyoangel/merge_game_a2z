@@ -11,7 +11,10 @@ class Player extends PositionComponent with CollisionCallbacks, HasGameRef<Runni
   final _paint = Paint()..color = Colors.blue;
   
   Player() : super(size: Vector2.all(playerSize)) {
-    add(RectangleHitbox());
+    add(RectangleHitbox(
+      size: Vector2.all(playerSize * 0.9),
+      position: Vector2.all(playerSize * 0.05),
+    ));
   }
   
   @override
@@ -30,8 +33,20 @@ class Player extends PositionComponent with CollisionCallbacks, HasGameRef<Runni
     );
   }
   
+  void reset() {
+    position = Vector2(
+      gameRef.size.x / 2 - size.x / 2,
+      gameRef.size.y - size.y - 50,
+    );
+  }
+  
   @override
-  void onCollision(Set<Vector2> intersectionPoints, PositionComponent other) {
+  void onCollisionStart(
+    Set<Vector2> intersectionPoints,
+    PositionComponent other,
+  ) {
+    super.onCollisionStart(intersectionPoints, other);
+    
     if (other is Coin) {
       other.collect();
     } else if (other is Obstacle) {

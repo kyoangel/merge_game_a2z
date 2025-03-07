@@ -12,12 +12,13 @@ class RunningScreen extends StatelessWidget {
         game: RunningGame(),
         overlayBuilderMap: {
           'score': (context, game) {
-            return const Positioned(
+            final runningGame = game as RunningGame;
+            return Positioned(
               top: 40,
               left: 20,
               child: Text(
-                '分數: 0',
-                style: TextStyle(
+                '分數: ${runningGame.score}',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 24,
                 ),
@@ -37,6 +38,48 @@ class RunningScreen extends StatelessWidget {
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        (game as RunningGame).restart();
+                      },
+                      child: const Text('重新開始'),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: const Text('返回主選單'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+          'victory': (context, game) {
+            final runningGame = game as RunningGame;
+            return Center(
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                color: Colors.black54,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      '恭喜過關！',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                      ),
+                    ),
+                    Text(
+                      '最終分數: ${runningGame.score}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
                       ),
                     ),
                     const SizedBox(height: 20),
