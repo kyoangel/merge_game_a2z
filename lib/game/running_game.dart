@@ -22,8 +22,8 @@ class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
   
   @override
   Future<void> onLoad() async {
-    // 添加碰撞調試視覺效果（開發時使用，發布時可以移除）
-    debugMode = true;
+    // 關閉調試模式
+    debugMode = false;
     
     camera.viewfinder.anchor = Anchor.topLeft;
     camera.viewfinder.zoom = 1.0;
