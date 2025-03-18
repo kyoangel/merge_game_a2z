@@ -12,7 +12,7 @@ enum UnitType {
 
 class BattleUnit {
   final UnitType type;
-  final Position position;
+  Position position;
   int health = 100;
   int attack = 10;
   
@@ -27,4 +27,8 @@ class BattleUnit {
   }
   
   bool get isAlive => health > 0;
+
+  void updatePosition(Position newPosition) {
+    position = newPosition;
+  }
 } 

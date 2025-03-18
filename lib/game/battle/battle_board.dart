@@ -17,6 +17,8 @@ class _BattleBoardState extends State<BattleBoard> {
   // 下方玩家的棋盤
   List<List<BattleUnit?>> playerBoard = [];
   
+  BattleUnit? selectedUnit; // 用于跟踪选中的玩家角色
+  
   @override
   void initState() {
     super.initState();
@@ -57,12 +59,14 @@ class _BattleBoardState extends State<BattleBoard> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SizedBox(
-                  height: boardHeight,
-                  child: _buildBoard(
-                    board: enemyBoard,
-                    isEnemy: true,
-                    borderColor: Colors.red,
+                Expanded(
+                  child: SizedBox(
+                    height: boardHeight,
+                    child: _buildBoard(
+                      board: enemyBoard,
+                      isEnemy: true,
+                      borderColor: Colors.red,
+                    ),
                   ),
                 ),
                 
@@ -77,13 +81,27 @@ class _BattleBoardState extends State<BattleBoard> {
                   ),
                 ),
                 
-                SizedBox(
-                  height: boardHeight,
-                  child: _buildBoard(
-                    board: playerBoard,
-                    isEnemy: false,
-                    borderColor: Colors.blue,
+                Expanded(
+                  child: SizedBox(
+                    height: boardHeight,
+                    child: _buildBoard(
+                      board: playerBoard,
+                      isEnemy: false,
+                      borderColor: Colors.blue,
+                    ),
                   ),
+                ),
+                
+                // 新增玩家角色按钮
+                ElevatedButton(
+                  onPressed: _addPlayerUnit,
+                  child: const Text('新增玩家角色'),
+                ),
+                
+                // 开战按钮
+                ElevatedButton(
+                  onPressed: _startBattle,
+                  child: const Text('开战'),
                 ),
               ],
             ),
@@ -121,7 +139,7 @@ class _BattleBoardState extends State<BattleBoard> {
               itemBuilder: (context, index) {
                 final row = index ~/ cols;
                 final col = index % cols;
-                return _buildCell(board[row][col], isEnemy);
+                return _buildCell(board[row][col], isEnemy, index);
               },
             ),
           ),
@@ -130,50 +148,129 @@ class _BattleBoardState extends State<BattleBoard> {
     );
   }
 
-  Widget _buildCell(BattleUnit? unit, bool isEnemy) {
-    return GestureDetector(
-      onTap: () {
-        if (!isEnemy) {  // 只允許在玩家區域操作
-          _handleCellTap(unit);
-        }
+  Widget _buildCell(BattleUnit? unit, bool isEnemy, int index) {
+    return DragTarget<BattleUnit>(
+      onWillAccept: (receivedUnit) {
+        // 只允许在玩家区域拖放
+        return !isEnemy;
       },
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey[300]!),
-          color: _getCellColor(unit, isEnemy),
-        ),
-        child: unit != null
-            ? FittedBox(
-                fit: BoxFit.contain,
-                child: Padding(
-                  padding: const EdgeInsets.all(4.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        unit.type == UnitType.player ? 'P' : 'E',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
+      onAccept: (receivedUnit) {
+        setState(() {
+          // 计算目标位置
+          final row = index ~/ cols;
+          final col = index % cols;
+          final newPosition = Position(row, col);
+
+          // 更新棋盘和单位位置
+          playerBoard[receivedUnit.position.row][receivedUnit.position.col] = null;
+          playerBoard[newPosition.row][newPosition.col] = receivedUnit;
+          receivedUnit.updatePosition(newPosition);
+        });
+      },
+      builder: (context, candidateData, rejectedData) {
+        return GestureDetector(
+          onTap: () {
+            if (!isEnemy) {  // 只允許在玩家區域操作
+              _handleCellTap(unit);
+            }
+            // 打印出格子的编号
+            print('点击了格子: ${index + 1}');
+          },
+          child: Container(
+            margin: const EdgeInsets.all(4.0), // 增加格子間距
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.grey[300]!),
+              color: _getCellColor(unit, isEnemy),
+            ),
+            child: unit != null
+                ? Draggable<BattleUnit>(
+                    data: unit,
+                    feedback: Material(
+                      child: Container(
+                        width: 50,
+                        height: 50,
+                        color: Colors.blue.withOpacity(0.5),
+                        child: Center(
+                          child: Text(
+                            unit.type == UnitType.player ? 'P' : 'E',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
-                      Text(
-                        '${unit.health}',
-                        style: const TextStyle(
-                          fontSize: 12,
+                    ),
+                    childWhenDragging: Container(),
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              unit.type == UnitType.player ? 'P' : 'E',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              '${unit.health}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              )
-            : null,
-      ),
+                    ),
+                  )
+                : null,
+          ),
+        );
+      },
     );
   }
 
+  void _addPlayerUnit() {
+    setState(() {
+      // 在玩家棋盘的第一个空位置新增一个玩家角色
+      for (int row = 0; row < rows; row++) {
+        for (int col = 0; col < cols; col++) {
+          if (playerBoard[row][col] == null) {
+            playerBoard[row][col] = BattleUnit(
+              type: UnitType.player,
+              position: Position(row, col),
+            );
+            return;
+          }
+        }
+      }
+    });
+  }
+
+  void _startBattle() {
+    // TODO: 实现开战逻辑
+    print('开战！');
+  }
+
   void _handleCellTap(BattleUnit? unit) {
-    // TODO: 處理玩家區域的點擊事件
-    print('點擊了玩家區域的格子');
+    setState(() {
+      if (unit != null && unit.type == UnitType.player) {
+        // 选中或取消选中玩家角色
+        selectedUnit = selectedUnit == unit ? null : unit;
+      } else if (selectedUnit != null) {
+        // 移动选中的玩家角色到新的位置
+        final newPosition = Position(
+          playerBoard.indexWhere((row) => row.contains(unit)),
+          playerBoard.firstWhere((row) => row.contains(unit)).indexOf(unit),
+        );
+        playerBoard[selectedUnit!.position.row][selectedUnit!.position.col] = null;
+        playerBoard[newPosition.row][newPosition.col] = selectedUnit;
+        selectedUnit!.updatePosition(newPosition);
+        selectedUnit = null;
+      }
+    });
   }
 
   Color _getCellColor(BattleUnit? unit, bool isEnemy) {
