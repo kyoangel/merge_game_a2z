@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../game/game_manager.dart';
 import '../screens/running_screen.dart';
+import '../screens/battle_screen.dart';
 
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
@@ -13,6 +14,18 @@ class MainMenuScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            ElevatedButton(
+              onPressed: () {
+                context.read<GameManager>().startBattle();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const BattleScreen(),
+                  ),
+                );
+              },
+              child: const Text('戰鬥畫面'),
+            ),
+            const SizedBox(height: 30),
             const Text(
               '進化跑酷',
               style: TextStyle(
