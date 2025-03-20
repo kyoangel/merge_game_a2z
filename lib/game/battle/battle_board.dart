@@ -28,6 +28,14 @@ class _BattleBoardState extends State<BattleBoard> {
   DateTime? _lastEnemyBulletTime;
   static const bulletCooldown = Duration(seconds: 2); // 子弹冷却时间
   
+  int coins = 0; // 金币数量
+  static const int unitCost = 100; // 新增角色所需金币
+  static const int victoryReward = 200; // 胜利奖励
+  static const int unitKillReward = 50; // 击杀敌人奖励
+  
+  bool _gameOver = false;
+  String? _battleResult;
+  
   @override
   void initState() {
     super.initState();
@@ -46,6 +54,9 @@ class _BattleBoardState extends State<BattleBoard> {
       type: UnitType.enemy,
       position: Position(1, 2),
     );
+
+    // 设置初始金币数量
+    coins = 1000;
   }
 
   void _startAutoAttack() {
@@ -184,13 +195,54 @@ class _BattleBoardState extends State<BattleBoard> {
     if (targetUnit != null) {
       targetUnit.takeDamage(bullet.damage);
       if (!targetUnit.isAlive) {
-        // 移除死亡单位
+        // 击杀奖励
         if (bullet.shooter.type == UnitType.player) {
-          battleBoard[bullet.position.row][bullet.position.col] = null;
-        } else {
-          battleBoard[bullet.position.row][bullet.position.col] = null;
+          setState(() {
+            coins += unitKillReward;
+          });
+        }
+        
+        // 移除死亡单位
+        battleBoard[bullet.position.row][bullet.position.col] = null;
+        
+        // 检查战斗结果
+        _checkBattleResult();
+      }
+    }
+  }
+
+  void _checkBattleResult() {
+    bool hasEnemy = false;
+    bool hasPlayer = false;
+
+    // 检查是否还有存活的单位
+    for (var row = 0; row < totalRows; row++) {
+      for (var col = 0; col < cols; col++) {
+        final unit = battleBoard[row][col];
+        if (unit != null && unit.isAlive) {
+          if (unit.type == UnitType.enemy) {
+            hasEnemy = true;
+          } else {
+            hasPlayer = true;
+          }
         }
       }
+    }
+
+    // 判定战斗结果
+    if (!hasEnemy) {
+      setState(() {
+        _gameOver = true;
+        _battleResult = "胜利！";
+        coins += victoryReward; // 胜利奖励
+        _isBattleStarted = false;
+      });
+    } else if (!hasPlayer) {
+      setState(() {
+        _gameOver = true;
+        _battleResult = "失败！";
+        _isBattleStarted = false;
+      });
     }
   }
 
@@ -203,15 +255,77 @@ class _BattleBoardState extends State<BattleBoard> {
         return Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(16.0),
-                child: _buildBoard(
-                  constraints: constraints,
-                  borderColor: Colors.grey,
-                ),
+            // 显示金币
+            Container(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.monetization_on, color: Colors.amber),
+                  const SizedBox(width: 4),
+                  Text(
+                    '金币: $coins',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
+            
+            Expanded(
+              child: Stack(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16.0),
+                    child: _buildBoard(
+                      constraints: constraints,
+                      borderColor: Colors.grey,
+                    ),
+                  ),
+                  
+                  // 显示战斗结果
+                  if (_gameOver && _battleResult != null)
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(16.0),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _battleResult!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: () {
+                                // 重置游戏
+                                setState(() {
+                                  _gameOver = false;
+                                  _battleResult = null;
+                                  _buttonsVisible = true;
+                                  _initializeBoard();
+                                });
+                              },
+                              child: const Text('重新开始'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            
             // 按钮布局
             Container(
               padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -408,6 +522,14 @@ class _BattleBoardState extends State<BattleBoard> {
   }
 
   void _addPlayerUnit() {
+    if (coins < unitCost) {
+      // 显示金币不足提示
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('金币不足！需要 $unitCost 金币')),
+      );
+      return;
+    }
+
     setState(() {
       // 在玩家区域（后3行）寻找空位
       for (int row = playerStartRow; row < totalRows; row++) {
@@ -417,6 +539,7 @@ class _BattleBoardState extends State<BattleBoard> {
               type: UnitType.player,
               position: Position(row, col),
             );
+            coins -= unitCost; // 扣除金币
             return;
           }
         }
