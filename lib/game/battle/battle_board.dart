@@ -23,6 +23,11 @@ class _BattleBoardState extends State<BattleBoard> {
   bool _buttonsVisible = true;
   bool _isBattleStarted = false;
   
+  // 添加计时器变量
+  DateTime? _lastPlayerBulletTime;
+  DateTime? _lastEnemyBulletTime;
+  static const bulletCooldown = Duration(seconds: 2); // 子弹冷却时间
+  
   @override
   void initState() {
     super.initState();
@@ -55,23 +60,54 @@ class _BattleBoardState extends State<BattleBoard> {
   }
 
   void _generateBullets() {
-    // 遍历整个棋盘
-    for (var row = 0; row < totalRows; row++) {
-      for (var col = 0; col < cols; col++) {
-        final unit = battleBoard[row][col];
-        if (unit != null && unit.isAlive && unit.type == UnitType.player) {
-          Position? targetPos = _findNearestEnemy(unit.position);
-          if (targetPos != null) {
-            bullets.add(Bullet(
-              shooter: unit,
-              position: unit.position,
-              damage: unit.attackPower,
-              targetPosition: targetPos,
-            ));
-            print('子弹生成: 从(${unit.position.row}, ${unit.position.col}) 射向 (${targetPos.row}, ${targetPos.col})');
+    final now = DateTime.now();
+    
+    // 玩家子弹生成
+    if (_lastPlayerBulletTime == null || 
+        now.difference(_lastPlayerBulletTime!) >= bulletCooldown) {
+      // 遍历玩家单位
+      for (var row = playerStartRow; row < totalRows; row++) {
+        for (var col = 0; col < cols; col++) {
+          final unit = battleBoard[row][col];
+          if (unit != null && unit.isAlive && unit.type == UnitType.player) {
+            Position? targetPos = _findNearestEnemy(unit.position);
+            if (targetPos != null) {
+              bullets.add(Bullet(
+                shooter: unit,
+                position: unit.position,
+                damage: unit.attackPower,
+                targetPosition: targetPos,
+              ));
+              print('玩家子弹生成: 从(${unit.position.row}, ${unit.position.col}) 射向 (${targetPos.row}, ${targetPos.col})');
+            }
           }
         }
       }
+      _lastPlayerBulletTime = now;
+    }
+
+    // 敌人子弹生成
+    if (_lastEnemyBulletTime == null || 
+        now.difference(_lastEnemyBulletTime!) >= bulletCooldown) {
+      // 遍历敌方单位
+      for (var row = 0; row < playerStartRow; row++) {
+        for (var col = 0; col < cols; col++) {
+          final unit = battleBoard[row][col];
+          if (unit != null && unit.isAlive && unit.type == UnitType.enemy) {
+            Position? targetPos = _findNearestPlayer(unit.position);
+            if (targetPos != null) {
+              bullets.add(Bullet(
+                shooter: unit,
+                position: unit.position,
+                damage: unit.attackPower,
+                targetPosition: targetPos,
+              ));
+              print('敌人子弹生成: 从(${unit.position.row}, ${unit.position.col}) 射向 (${targetPos.row}, ${targetPos.col})');
+            }
+          }
+        }
+      }
+      _lastEnemyBulletTime = now;
     }
   }
 
@@ -114,15 +150,23 @@ class _BattleBoardState extends State<BattleBoard> {
   }
 
   Position? _findNearestPlayer(Position from) {
-    // 简单实现：返回第一个找到的玩家位置
-    for (var row in battleBoard) {
-      for (var unit in row) {
-        if (unit != null && unit.isAlive) {
-          return unit.position;
+    Position? nearest;
+    double minDistance = double.infinity;
+
+    // 在玩家区域（后3行）寻找目标
+    for (var row = playerStartRow; row < totalRows; row++) {
+      for (var col = 0; col < cols; col++) {
+        final unit = battleBoard[row][col];
+        if (unit != null && unit.isAlive && unit.type == UnitType.player) {
+          double distance = _calculateDistance(from, unit.position);
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearest = unit.position;
+          }
         }
       }
     }
-    return null;
+    return nearest;
   }
 
   void _applyDamage(Bullet bullet) {
