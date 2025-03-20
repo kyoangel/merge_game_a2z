@@ -1,28 +1,44 @@
+import 'dart:math'; // 导入 dart:math 库
 import 'battle_unit.dart';
 
 class Bullet {
   final BattleUnit shooter;
-  Position position;
+  double x;
+  double y;
   final int damage;
+  final Position targetPosition; // 新增：保存目标位置
 
   Bullet({
     required this.shooter,
-    required this.position,
+    required Position position,
     required this.damage,
-  });
+    required this.targetPosition, // 新增：构造函数需要目标位置
+  }) : x = position.col.toDouble(),
+       y = position.row.toDouble();
 
   void moveTowards(Position target) {
-    // 简单的移动逻辑，假设每次移动一格
-    if (position.row < target.row) {
-      position = Position(position.row + 1, position.col);
-    } else if (position.row > target.row) {
-      position = Position(position.row - 1, position.col);
-    }
+    // 计算方向向量
+    final dx = targetPosition.col - shooter.position.col;
+    final dy = targetPosition.row - shooter.position.row;
+    final distance = sqrt(dx * dx + dy * dy);
 
-    if (position.col < target.col) {
-      position = Position(position.row, position.col + 1);
-    } else if (position.col > target.col) {
-      position = Position(position.row, position.col - 1);
+    if (distance > 0) {
+      // 标准化方向向量并设置速度
+      final speed = 0.1; // 调整速度
+      final dirX = dx / distance;
+      final dirY = dy / distance;
+
+      // 更新位置
+      x += dirX * speed;
+      y += dirY * speed;
     }
   }
+
+  bool hasReachedTarget() {
+    final dx = x - targetPosition.col;
+    final dy = y - targetPosition.row;
+    return sqrt(dx * dx + dy * dy) < 0.1;
+  }
+
+  Position get position => Position(y.round(), x.round());
 } 

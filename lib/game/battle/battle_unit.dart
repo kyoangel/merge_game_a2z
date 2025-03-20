@@ -40,9 +40,11 @@ class BattleUnit {
       shooter: this,
       position: position,
       damage: attackPower,
+      targetPosition: targetPosition,
     );
-    // 将子弹添加到 BattleBoard 的 bullets 列表中
-    // 需要通过某种方式访问 BattleBoard 的 bullets 列表
+    // 打印子弹生成信息
     print('子弹生成: shooter=${type}, position=(${position.row}, ${position.col}), target=(${targetPosition.row}, ${targetPosition.col})');
+    // 需要通过某种方式访问 BattleBoard 的 bullets 列表
+    // 例如，通过回调或事件系统将子弹添加到 BattleBoard
   }
 } 

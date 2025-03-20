@@ -11,81 +11,64 @@ class BattleBoard extends StatefulWidget {
 }
 
 class _BattleBoardState extends State<BattleBoard> {
-  static const int rows = 3;
+  static const int totalRows = 6; // 总行数：6行
   static const int cols = 5;
+  static const int playerStartRow = 3; // 玩家区域从第3行开始
   
-  // 上方敵人的棋盤
-  List<List<BattleUnit?>> enemyBoard = [];
-  // 下方玩家的棋盤
-  List<List<BattleUnit?>> playerBoard = [];
+  // 使用单个棋盘来表示整个战场
+  List<List<BattleUnit?>> battleBoard = [];
   
-  BattleUnit? selectedUnit; // 用于跟踪选中的玩家角色
-  
+  BattleUnit? selectedUnit;
   List<Bullet> bullets = [];
-  
   bool _buttonsVisible = true;
+  bool _isBattleStarted = false;
   
   @override
   void initState() {
     super.initState();
-    _initializeBoards();
+    _initializeBoard();
     _startAutoAttack();
   }
   
-  void _initializeBoards() {
-    // 初始化為空棋盤
-    enemyBoard = List.generate(rows, (row) {
+  void _initializeBoard() {
+    // 初始化为一个 5x6 的空棋盘
+    battleBoard = List.generate(totalRows, (row) {
       return List.generate(cols, (col) => null);
     });
     
-    playerBoard = List.generate(rows, (row) {
-      return List.generate(cols, (col) => null);
-    });
-    
-    // 示例：在中間位置放置一個單位
-    enemyBoard[1][2] = BattleUnit(
+    // 在敌方区域中间位置放置一个单位
+    battleBoard[1][2] = BattleUnit(
       type: UnitType.enemy,
       position: Position(1, 2),
     );
   }
 
   void _startAutoAttack() {
-    Timer.periodic(Duration(seconds: 1), (timer) {
-      setState(() {
-        _generateBullets();
-        _moveBullets();
-      });
+    Timer.periodic(Duration(milliseconds: 16), (timer) { // 每帧更新
+      if (_isBattleStarted) {
+        setState(() {
+          _generateBullets(); // 定期生成子弹
+          _moveBullets();
+        });
+      }
     });
   }
 
   void _generateBullets() {
-    for (var row in playerBoard) {
-      for (var unit in row) {
-        if (unit != null && unit.isAlive) {
-          Position? target = _findNearestEnemy(unit.position);
-          if (target != null) {
-            unit.attack(target);
+    // 遍历整个棋盘
+    for (var row = 0; row < totalRows; row++) {
+      for (var col = 0; col < cols; col++) {
+        final unit = battleBoard[row][col];
+        if (unit != null && unit.isAlive && unit.type == UnitType.player) {
+          Position? targetPos = _findNearestEnemy(unit.position);
+          if (targetPos != null) {
             bullets.add(Bullet(
               shooter: unit,
               position: unit.position,
               damage: unit.attackPower,
+              targetPosition: targetPos,
             ));
-          }
-        }
-      }
-    }
-
-    for (var row in enemyBoard) {
-      for (var unit in row) {
-        if (unit != null && unit.isAlive) {
-          Position? target = _findNearestPlayer(unit.position);
-          if (target != null) {
-            unit.attack(target);
-            bullets.add(Bullet(
-              shooter: unit,
-              position: unit.position,
-              damage: unit.attackPower,
-            ));
+            print('子弹生成: 从(${unit.position.row}, ${unit.position.col}) 射向 (${targetPos.row}, ${targetPos.col})');
           }
         }
       }
@@ -94,28 +77,52 @@ class _BattleBoardState extends State<BattleBoard> {
 
   void _moveBullets() {
     bullets.removeWhere((bullet) {
-      Position? target = bullet.shooter.type == UnitType.player
-          ? _findNearestEnemy(bullet.position)
-          : _findNearestPlayer(bullet.position);
+      // 移动子弹
+      bullet.moveTowards(bullet.targetPosition);
 
-      if (target != null) {
-        bullet.moveTowards(target);
-        // 检查子弹是否击中目标
-        if (bullet.position == target) {
-          _applyDamage(bullet);
-          return true; // 从 bullets 列表中移除已命中的子弹
-        }
+      // 检查是否到达目标
+      if (bullet.hasReachedTarget()) {
+        _applyDamage(bullet);
+        return true; // 移除子弹
       }
       return false;
     });
   }
 
   Position? _findNearestEnemy(Position from) {
-    // 实现寻找最近敌人的逻辑
+    Position? nearest;
+    double minDistance = double.infinity;
+
+    // 只在敌方区域（前3行）寻找目标
+    for (var row = 0; row < playerStartRow; row++) {
+      for (var col = 0; col < cols; col++) {
+        final unit = battleBoard[row][col];
+        if (unit != null && unit.isAlive && unit.type == UnitType.enemy) {
+          double distance = _calculateDistance(from, unit.position);
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearest = unit.position;
+          }
+        }
+      }
+    }
+    return nearest;
+  }
+
+  double _calculateDistance(Position a, Position b) {
+    return ((a.row - b.row) * (a.row - b.row) + (a.col - b.col) * (a.col - b.col)).toDouble();
   }
 
   Position? _findNearestPlayer(Position from) {
-    // 实现寻找最近玩家的逻辑
+    // 简单实现：返回第一个找到的玩家位置
+    for (var row in battleBoard) {
+      for (var unit in row) {
+        if (unit != null && unit.isAlive) {
+          return unit.position;
+        }
+      }
+    }
+    return null;
   }
 
   void _applyDamage(Bullet bullet) {
@@ -124,9 +131,9 @@ class _BattleBoardState extends State<BattleBoard> {
     // 找到目标单位
     BattleUnit? targetUnit;
     if (bullet.shooter.type == UnitType.player) {
-      targetUnit = enemyBoard[bullet.position.row][bullet.position.col];
+      targetUnit = battleBoard[bullet.position.row][bullet.position.col];
     } else {
-      targetUnit = playerBoard[bullet.position.row][bullet.position.col];
+      targetUnit = battleBoard[bullet.position.row][bullet.position.col];
     }
 
     // 扣除HP
@@ -135,9 +142,9 @@ class _BattleBoardState extends State<BattleBoard> {
       if (!targetUnit.isAlive) {
         // 移除死亡单位
         if (bullet.shooter.type == UnitType.player) {
-          enemyBoard[bullet.position.row][bullet.position.col] = null;
+          battleBoard[bullet.position.row][bullet.position.col] = null;
         } else {
-          playerBoard[bullet.position.row][bullet.position.col] = null;
+          battleBoard[bullet.position.row][bullet.position.col] = null;
         }
       }
     }
@@ -147,104 +154,74 @@ class _BattleBoardState extends State<BattleBoard> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 計算合適的棋盤大小
         final availableHeight = constraints.maxHeight;
-        final boardHeight = (availableHeight - 40) / 2; // 40是分隔線和間距的高度
         
-        return SingleChildScrollView(
-          child: Container(
-            constraints: BoxConstraints(
-              maxHeight: availableHeight,
-              maxWidth: constraints.maxWidth,
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16.0),
+                child: _buildBoard(
+                  constraints: constraints,
+                  borderColor: Colors.grey,
+                ),
+              ),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: boardHeight,
-                    child: _buildBoard(
-                      board: enemyBoard,
-                      isEnemy: true,
-                      borderColor: Colors.red,
+            // 按钮布局
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Visibility(
+                    visible: _buttonsVisible,
+                    maintainSize: true,
+                    maintainAnimation: true,
+                    maintainState: true,
+                    child: ElevatedButton(
+                      onPressed: _addPlayerUnit,
+                      child: const Text('新增玩家角色'),
                     ),
                   ),
-                ),
-                
-                // 分隔線
-                Container(
-                  height: 4,
-                  margin: const EdgeInsets.symmetric(vertical: 18),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [Colors.yellow.shade700, Colors.black, Colors.yellow.shade700],
+                  const SizedBox(width: 10),
+                  Visibility(
+                    visible: _buttonsVisible,
+                    maintainSize: true,
+                    maintainAnimation: true,
+                    maintainState: true,
+                    child: ElevatedButton(
+                      onPressed: _startBattle,
+                      child: const Text('開戰'),
                     ),
                   ),
-                ),
-                
-                Expanded(
-                  child: SizedBox(
-                    height: boardHeight,
-                    child: _buildBoard(
-                      board: playerBoard,
-                      isEnemy: false,
-                      borderColor: Colors.blue,
-                    ),
-                  ),
-                ),
-                
-                // 按钮布局
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Visibility(
-                      visible: _buttonsVisible,
-                      maintainSize: true,
-                      maintainAnimation: true,
-                      maintainState: true,
-                      child: ElevatedButton(
-                        onPressed: _addPlayerUnit,
-                        child: const Text('新增玩家角色'),
-                      ),
-                    ),
-                    const SizedBox(width: 10), // 按钮间距
-                    Visibility(
-                      visible: _buttonsVisible,
-                      maintainSize: true,
-                      maintainAnimation: true,
-                      maintainState: true,
-                      child: ElevatedButton(
-                        onPressed: _startBattle,
-                        child: const Text('開戰'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
         );
       },
     );
   }
 
   Widget _buildBoard({
-    required List<List<BattleUnit?>> board,
-    required bool isEnemy,
+    required BoxConstraints constraints,
     required Color borderColor,
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final cellWidth = constraints.maxWidth / cols;
+        final cellHeight = constraints.maxHeight / totalRows;
+        
         return Stack(
           children: [
             Container(
-              padding: const EdgeInsets.all(8.0),
               decoration: BoxDecoration(
                 border: Border.all(color: borderColor, width: 2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: AspectRatio(
-                aspectRatio: cols / rows,
+                aspectRatio: cols / totalRows,
                 child: GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -254,28 +231,37 @@ class _BattleBoardState extends State<BattleBoard> {
                     crossAxisSpacing: 2.0,
                     mainAxisSpacing: 2.0,
                   ),
-                  itemCount: rows * cols,
+                  itemCount: totalRows * cols,
                   itemBuilder: (context, index) {
                     final row = index ~/ cols;
                     final col = index % cols;
-                    return _buildCell(board[row][col], isEnemy, index);
+                    final unit = battleBoard[row][col];
+                    final isEnemyArea = row < playerStartRow;
+                    return _buildCell(unit, isEnemyArea, index);
                   },
                 ),
               ),
             ),
             ...bullets.map((bullet) {
-              // 计算子弹的实际位置
-              final bulletLeft = bullet.position.col * (constraints.maxWidth / cols);
-              final bulletTop = bullet.position.row * (constraints.maxHeight / rows);
+              final bulletLeft = bullet.x * cellWidth;
+              final bulletTop = bullet.y * cellHeight;
+              
               return Positioned(
                 left: bulletLeft,
                 top: bulletTop,
                 child: Container(
-                  width: 10, // 子弹宽度
-                  height: 10, // 子弹高度
+                  width: 8,
+                  height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: bullet.shooter.type == UnitType.player ? Colors.blue : Colors.red,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.5),
+                        spreadRadius: 2,
+                        blurRadius: 4,
+                      ),
+                    ],
                   ),
                 ),
               );
@@ -308,8 +294,8 @@ class _BattleBoardState extends State<BattleBoard> {
             final newPosition = Position(row, col);
 
             // 更新棋盘和单位位置
-            playerBoard[receivedUnit.position.row][receivedUnit.position.col] = null;
-            playerBoard[newPosition.row][newPosition.col] = receivedUnit;
+            battleBoard[receivedUnit.position.row][receivedUnit.position.col] = null;
+            battleBoard[newPosition.row][newPosition.col] = receivedUnit;
             receivedUnit.updatePosition(newPosition);
           });
         },
@@ -379,11 +365,11 @@ class _BattleBoardState extends State<BattleBoard> {
 
   void _addPlayerUnit() {
     setState(() {
-      // 在玩家棋盘的第一个空位置新增一个玩家角色
-      for (int row = 0; row < rows; row++) {
+      // 在玩家区域（后3行）寻找空位
+      for (int row = playerStartRow; row < totalRows; row++) {
         for (int col = 0; col < cols; col++) {
-          if (playerBoard[row][col] == null) {
-            playerBoard[row][col] = BattleUnit(
+          if (battleBoard[row][col] == null) {
+            battleBoard[row][col] = BattleUnit(
               type: UnitType.player,
               position: Position(row, col),
             );
@@ -396,23 +382,19 @@ class _BattleBoardState extends State<BattleBoard> {
 
   void _startBattle() {
     setState(() {
-      // 隐藏按钮
-      _buttonsVisible = false;
-      // 开始自动攻击
-      _startAutoAttack();
+      _isBattleStarted = true; // 设置战斗状态为开始
+      _buttonsVisible = false; // 隐藏按钮
+      _generateBullets(); // 开始战斗时生成子弹
     });
   }
 
   void _handleCellTap(BattleUnit? unit) {
     setState(() {
       if (unit != null && unit.type == UnitType.player) {
-        // 打印角色被点击的日志
         print('角色被点击: 类型=${unit.type}, 位置=(${unit.position.row}, ${unit.position.col})');
         
-        // 选中或取消选中玩家角色
         selectedUnit = selectedUnit == unit ? null : unit;
 
-        // 生成子弹并攻击最近的敌人
         Position? target = _findNearestEnemy(unit.position);
         if (target != null) {
           unit.attack(target);
@@ -420,16 +402,17 @@ class _BattleBoardState extends State<BattleBoard> {
             shooter: unit,
             position: unit.position,
             damage: unit.attackPower,
+            targetPosition: target,
           ));
         }
       } else if (selectedUnit != null) {
         // 移动选中的玩家角色到新的位置
         final newPosition = Position(
-          playerBoard.indexWhere((row) => row.contains(unit)),
-          playerBoard.firstWhere((row) => row.contains(unit)).indexOf(unit),
+          battleBoard.indexWhere((row) => row.contains(unit)),
+          battleBoard.firstWhere((row) => row.contains(unit)).indexOf(unit),
         );
-        playerBoard[selectedUnit!.position.row][selectedUnit!.position.col] = null;
-        playerBoard[newPosition.row][newPosition.col] = selectedUnit;
+        battleBoard[selectedUnit!.position.row][selectedUnit!.position.col] = null;
+        battleBoard[newPosition.row][newPosition.col] = selectedUnit;
         selectedUnit!.updatePosition(newPosition);
         selectedUnit = null;
       }
