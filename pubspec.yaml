@@ -60,9 +60,8 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # 暫時註釋掉 assets 配置
-  # assets:
-  #   - assets/images/
+  assets:
+    - assets/images/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
