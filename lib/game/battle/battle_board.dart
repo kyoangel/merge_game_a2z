@@ -563,8 +563,6 @@ class _BattleBoardState extends State<BattleBoard> {
         if (!isEnemy) {  // 只允許在玩家區域操作
           _handleCellTap(unit);
         }
-        // 打印出格子的编号
-        print('点击了格子: ${index + 1}');
       },
       child: DragTarget<BattleUnit>(
         onWillAccept: (receivedUnit) {
@@ -577,16 +575,26 @@ class _BattleBoardState extends State<BattleBoard> {
             final row = index ~/ cols;
             final col = index % cols;
             final newPosition = Position(row, col);
-
-            // 更新棋盘和单位位置
-            battleBoard[receivedUnit.position.row][receivedUnit.position.col] = null;
-            battleBoard[newPosition.row][newPosition.col] = receivedUnit;
-            receivedUnit.updatePosition(newPosition);
+            
+            // 检查是否可以合成
+            final targetUnit = battleBoard[newPosition.row][newPosition.col];
+            if (targetUnit != null && 
+                targetUnit.type == UnitType.player && 
+                targetUnit.unitName == receivedUnit.unitName) {
+              // 合成
+              targetUnit.merge(receivedUnit);
+              battleBoard[receivedUnit.position.row][receivedUnit.position.col] = null;
+            } else {
+              // 普通移动
+              battleBoard[receivedUnit.position.row][receivedUnit.position.col] = null;
+              battleBoard[newPosition.row][newPosition.col] = receivedUnit;
+              receivedUnit.updatePosition(newPosition);
+            }
           });
         },
         builder: (context, candidateData, rejectedData) {
           return Container(
-            margin: const EdgeInsets.all(4.0), // 增加格子間距
+            margin: const EdgeInsets.all(4.0),
             decoration: BoxDecoration(
               border: Border.all(color: Colors.grey[300]!),
               color: _getCellColor(unit, isEnemy),
@@ -601,7 +609,7 @@ class _BattleBoardState extends State<BattleBoard> {
                         color: Colors.blue.withOpacity(0.5),
                         child: Center(
                           child: Text(
-                            unit.type == UnitType.player ? 'P' : 'E',
+                            unit.type == UnitType.player ? unit.unitName : 'E',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                             ),
@@ -612,7 +620,7 @@ class _BattleBoardState extends State<BattleBoard> {
                     childWhenDragging: Container(),
                     child: GestureDetector(
                       onTap: () {
-                        if (!isEnemy) {  // 只允許在玩家區域操作
+                        if (!isEnemy) {
                           _handleCellTap(unit);
                         }
                       },
@@ -624,7 +632,7 @@ class _BattleBoardState extends State<BattleBoard> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                unit.type == UnitType.player ? 'P' : 'E',
+                                unit.type == UnitType.player ? unit.unitName : 'E',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
