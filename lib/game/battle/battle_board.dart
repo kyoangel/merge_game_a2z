@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'battle_unit.dart';
 import 'bullet.dart';
 import 'dart:async';
+import 'dart:math';
 
 class BattleBoard extends StatefulWidget {
   const BattleBoard({super.key});
@@ -38,32 +39,57 @@ class _BattleBoardState extends State<BattleBoard> {
   
   // 關卡系統
   int currentLevel = 1;
-  List<LevelConfig> levelConfigs = [
-    LevelConfig(
-      level: 1,
-      enemies: [
-        EnemyConfig(row: 1, col: 2, health: 100, attackPower: 10),
-      ],
-      reward: 200,
-    ),
-    LevelConfig(
-      level: 2,
-      enemies: [
-        EnemyConfig(row: 1, col: 1, health: 120, attackPower: 12),
-        EnemyConfig(row: 1, col: 3, health: 120, attackPower: 12),
-      ],
-      reward: 300,
-    ),
-    LevelConfig(
-      level: 3,
-      enemies: [
-        EnemyConfig(row: 0, col: 2, health: 150, attackPower: 15),
-        EnemyConfig(row: 1, col: 1, health: 150, attackPower: 15),
-        EnemyConfig(row: 1, col: 3, health: 150, attackPower: 15),
-      ],
-      reward: 400,
-    ),
-  ];
+  int _playerMaxUnitLevel = 1; // 追蹤玩家最高單位等級
+  
+  // 保存玩家和敵方單位狀態
+  List<List<BattleUnit?>>? _savedPlayerUnits;
+  List<List<BattleUnit?>>? _savedEnemyUnits;
+  int? _savedCoins;
+
+  // 動態生成關卡配置
+  LevelConfig _generateLevelConfig() {
+    final random = Random();
+    final enemyCount = min(3 + (currentLevel ~/ 5), 6); // 每5關增加一個敵人，最多6個
+    final enemies = <EnemyConfig>[];
+    
+    // 計算敵人等級
+    final baseEnemyLevel = _playerMaxUnitLevel + (currentLevel ~/ 10); // 每10關敵人等級+1
+    final enemyLevelVariation = 2; // 敵人等級變化範圍
+    
+    // 生成敵人位置
+    final availablePositions = <Position>[];
+    for (var row = 0; row < playerStartRow; row++) {
+      for (var col = 0; col < cols; col++) {
+        availablePositions.add(Position(row, col));
+      }
+    }
+    availablePositions.shuffle(random);
+    
+    // 生成敵人
+    for (var i = 0; i < enemyCount; i++) {
+      if (availablePositions.isEmpty) break;
+      
+      final position = availablePositions.removeLast();
+      final levelVariation = random.nextInt(enemyLevelVariation * 2 + 1) - enemyLevelVariation;
+      final enemyLevel = max(1, baseEnemyLevel + levelVariation);
+      final enemyName = String.fromCharCode('A'.codeUnitAt(0) + enemyLevel - 1);
+      
+      enemies.add(EnemyConfig(
+        row: position.row,
+        col: position.col,
+        unitName: enemyName,
+      ));
+    }
+    
+    // 計算獎勵
+    final reward = 200 + (currentLevel * 50);
+    
+    return LevelConfig(
+      level: currentLevel,
+      enemies: enemies,
+      reward: reward,
+    );
+  }
 
   // 測試模式
   bool isTestMode = false;
@@ -80,14 +106,14 @@ class _BattleBoardState extends State<BattleBoard> {
       return List.generate(cols, (col) => null);
     });
     
-    // 根據當前關卡配置初始化敵人
-    final currentConfig = levelConfigs[currentLevel - 1];
+    // 根據動態生成的關卡配置初始化敵人
+    final currentConfig = _generateLevelConfig();
     for (var enemy in currentConfig.enemies) {
       battleBoard[enemy.row][enemy.col] = BattleUnit(
         type: UnitType.enemy,
         position: Position(enemy.row, enemy.col),
-      )..health = enemy.health
-       ..attackPower = enemy.attackPower;
+        unitName: enemy.unitName,
+      );
     }
 
     coins = 1000;
@@ -245,38 +271,88 @@ class _BattleBoardState extends State<BattleBoard> {
     }
   }
 
-  void _checkBattleResult() {
-    bool hasEnemy = false;
-    bool hasPlayer = false;
-
-    // 检查是否还有存活的单位
-    for (var row = 0; row < totalRows; row++) {
+  // 更新玩家最高單位等級
+  void _updatePlayerMaxUnitLevel() {
+    int maxLevel = 1;
+    for (var row = playerStartRow; row < totalRows; row++) {
       for (var col = 0; col < cols; col++) {
         final unit = battleBoard[row][col];
-        if (unit != null && unit.isAlive) {
-          if (unit.type == UnitType.enemy) {
-            hasEnemy = true;
-          } else {
-            hasPlayer = true;
-          }
+        if (unit != null && unit.type == UnitType.player) {
+          final level = unit.unitName.codeUnitAt(0) - 'A'.codeUnitAt(0) + 1;
+          maxLevel = max(maxLevel, level);
         }
       }
     }
+    _playerMaxUnitLevel = maxLevel;
+  }
 
-    // 判定战斗结果
-    if (!hasEnemy) {
-      setState(() {
-        _gameOver = true;
-        _battleResult = "胜利！";
-        coins += victoryReward; // 胜利奖励
-        _isBattleStarted = false;
+  // 保存玩家和敵方單位狀態
+  void _saveBattleState() {
+    // 保存金錢
+    _savedCoins = coins;
+    
+    // 保存玩家單位
+    _savedPlayerUnits = List.generate(totalRows, (row) {
+      return List.generate(cols, (col) {
+        final unit = battleBoard[row][col];
+        if (unit != null && unit.type == UnitType.player) {
+          return BattleUnit(
+            type: UnitType.player,
+            position: Position(row, col),
+            unitName: unit.unitName,
+            level: unit.level,
+          );
+        }
+        return null;
       });
-    } else if (!hasPlayer) {
-      setState(() {
-        _gameOver = true;
-        _battleResult = "失败！";
-        _isBattleStarted = false;
+    });
+    
+    // 保存敵方單位
+    _savedEnemyUnits = List.generate(totalRows, (row) {
+      return List.generate(cols, (col) {
+        final unit = battleBoard[row][col];
+        if (unit != null && unit.type == UnitType.enemy) {
+          return BattleUnit(
+            type: UnitType.enemy,
+            position: Position(row, col),
+            unitName: unit.unitName,
+            level: unit.level,
+          );
+        }
+        return null;
       });
+    });
+  }
+
+  void _restoreBattleState() {
+    if (_savedPlayerUnits == null || _savedEnemyUnits == null || _savedCoins == null) return;
+    
+    // 恢復金錢
+    coins = _savedCoins!;
+    
+    // 清空棋盤
+    battleBoard = List.generate(totalRows, (row) {
+      return List.generate(cols, (col) => null);
+    });
+    
+    // 恢復玩家單位
+    for (var row = 0; row < totalRows; row++) {
+      for (var col = 0; col < cols; col++) {
+        final unit = _savedPlayerUnits![row][col];
+        if (unit != null) {
+          battleBoard[row][col] = unit;
+        }
+      }
+    }
+    
+    // 恢復敵方單位
+    for (var row = 0; row < totalRows; row++) {
+      for (var col = 0; col < cols; col++) {
+        final unit = _savedEnemyUnits![row][col];
+        if (unit != null) {
+          battleBoard[row][col] = unit;
+        }
+      }
     }
   }
 
@@ -339,12 +415,40 @@ class _BattleBoardState extends State<BattleBoard> {
   }
 
   void _nextLevel() {
-    if (currentLevel < levelConfigs.length) {
-      setState(() {
-        currentLevel++;
-        _initializeBoard();
+    setState(() {
+      _gameOver = false;
+      _battleResult = null;
+      _buttonsVisible = true;
+      
+      // 清空棋盤
+      battleBoard = List.generate(totalRows, (row) {
+        return List.generate(cols, (col) => null);
       });
-    }
+      
+      // 恢復玩家單位
+      if (_savedPlayerUnits != null) {
+        for (var row = 0; row < totalRows; row++) {
+          for (var col = 0; col < cols; col++) {
+            final unit = _savedPlayerUnits![row][col];
+            if (unit != null) {
+              battleBoard[row][col] = unit;
+            }
+          }
+        }
+      }
+      
+      // 生成新的敵人
+      final currentConfig = _generateLevelConfig();
+      for (var enemy in currentConfig.enemies) {
+        battleBoard[enemy.row][enemy.col] = BattleUnit(
+          type: UnitType.enemy,
+          position: Position(enemy.row, enemy.col),
+          unitName: enemy.unitName,
+        );
+      }
+      
+      currentLevel++;
+    });
   }
 
   @override
@@ -409,18 +513,23 @@ class _BattleBoardState extends State<BattleBoard> {
                                   ),
                                 ),
                                 const SizedBox(height: 16),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    // 重置游戏
-                                    setState(() {
-                                      _gameOver = false;
-                                      _battleResult = null;
-                                      _buttonsVisible = true;
-                                      _initializeBoard();
-                                    });
-                                  },
-                                  child: const Text('重新开始'),
-                                ),
+                                if (_battleResult == "胜利！")
+                                  ElevatedButton(
+                                    onPressed: _nextLevel,
+                                    child: const Text('挑戰下一關'),
+                                  )
+                                else
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _gameOver = false;
+                                        _battleResult = null;
+                                        _buttonsVisible = true;
+                                        _restoreBattleState(); // 失敗時恢復戰鬥狀態
+                                      });
+                                    },
+                                    child: const Text('重新挑戰'),
+                                  ),
                               ],
                             ),
                           ),
@@ -684,9 +793,10 @@ class _BattleBoardState extends State<BattleBoard> {
 
   void _startBattle() {
     setState(() {
-      _isBattleStarted = true; // 设置战斗状态为开始
-      _buttonsVisible = false; // 隐藏按钮
-      _generateBullets(); // 开始战斗时生成子弹
+      _saveBattleState(); // 開始戰鬥前保存戰鬥狀態
+      _isBattleStarted = true;
+      _buttonsVisible = false;
+      _generateBullets();
     });
   }
 
@@ -727,6 +837,41 @@ class _BattleBoardState extends State<BattleBoard> {
     }
     return unit.type == UnitType.player ? Colors.blue[100]! : Colors.red[100]!;
   }
+
+  void _checkBattleResult() {
+    bool hasEnemy = false;
+    bool hasPlayer = false;
+
+    for (var row = 0; row < totalRows; row++) {
+      for (var col = 0; col < cols; col++) {
+        final unit = battleBoard[row][col];
+        if (unit != null && unit.isAlive) {
+          if (unit.type == UnitType.enemy) {
+            hasEnemy = true;
+          } else {
+            hasPlayer = true;
+          }
+        }
+      }
+    }
+
+    if (!hasEnemy) {
+      setState(() {
+        _gameOver = true;
+        _battleResult = "胜利！";
+        coins += victoryReward;
+        _isBattleStarted = false;
+        _updatePlayerMaxUnitLevel();
+      });
+    } else if (!hasPlayer) {
+      setState(() {
+        _gameOver = true;
+        _battleResult = "失败！";
+        _isBattleStarted = false;
+        _restoreBattleState(); // 失敗時恢復戰鬥狀態
+      });
+    }
+  }
 }
 
 // 關卡配置類
@@ -746,13 +891,11 @@ class LevelConfig {
 class EnemyConfig {
   final int row;
   final int col;
-  final int health;
-  final int attackPower;
+  final String unitName;
 
   EnemyConfig({
     required this.row,
     required this.col,
-    required this.health,
-    required this.attackPower,
+    required this.unitName,
   });
 } 
