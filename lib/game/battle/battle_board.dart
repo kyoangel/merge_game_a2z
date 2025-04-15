@@ -46,15 +46,28 @@ class _BattleBoardState extends State<BattleBoard> {
   List<List<BattleUnit?>>? _savedEnemyUnits;
   int? _savedCoins;
 
+  int _winStreak = 0; // 追蹤連勝數
+  static const int maxWinStreak = 10; // 最大連勝數
+  
   // 動態生成關卡配置
   LevelConfig _generateLevelConfig() {
     final random = Random();
-    final enemyCount = min(3 + (currentLevel ~/ 5), 6); // 每5關增加一個敵人，最多6個
-    final enemies = <EnemyConfig>[];
+    
+    // 計算敵人數量
+    final baseEnemyCount = 3;
+    final winStreakBonus = (_winStreak ~/ 2); // 每2連勝增加1個敵人
+    final enemyCount = min(baseEnemyCount + winStreakBonus, 10); // 最多12個敵人
     
     // 計算敵人等級
-    final baseEnemyLevel = _playerMaxUnitLevel + (currentLevel ~/ 10); // 每10關敵人等級+1
+    final playerMaxLevel = _playerMaxUnitLevel;
+    final winStreakLevelBonus = (_winStreak ~/ 3); // 每3連勝敵人等級+1
+    final baseEnemyLevel = playerMaxLevel + winStreakLevelBonus;
     final enemyLevelVariation = 2; // 敵人等級變化範圍
+    
+    // 計算敵人屬性加成
+    final winStreakStatBonus = 1.0 + (_winStreak * 0.1); // 每連勝增加10%屬性
+    
+    final enemies = <EnemyConfig>[];
     
     // 生成敵人位置
     final availablePositions = <Position>[];
@@ -78,11 +91,14 @@ class _BattleBoardState extends State<BattleBoard> {
         row: position.row,
         col: position.col,
         unitName: enemyName,
+        statBonus: winStreakStatBonus,
       ));
     }
     
     // 計算獎勵
-    final reward = 200 + (currentLevel * 50);
+    final baseReward = 200;
+    final winStreakRewardBonus = _winStreak * 50; // 每連勝增加50金幣獎勵
+    final reward = baseReward + winStreakRewardBonus;
     
     return LevelConfig(
       level: currentLevel,
@@ -440,11 +456,15 @@ class _BattleBoardState extends State<BattleBoard> {
       // 生成新的敵人
       final currentConfig = _generateLevelConfig();
       for (var enemy in currentConfig.enemies) {
-        battleBoard[enemy.row][enemy.col] = BattleUnit(
+        final unit = BattleUnit(
           type: UnitType.enemy,
           position: Position(enemy.row, enemy.col),
           unitName: enemy.unitName,
         );
+        // 應用屬性加成
+        unit.health = (unit.health * enemy.statBonus).round();
+        unit.attackPower = (unit.attackPower * enemy.statBonus).round();
+        battleBoard[enemy.row][enemy.col] = unit;
       }
       
       currentLevel++;
@@ -462,7 +482,7 @@ class _BattleBoardState extends State<BattleBoard> {
             return Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 显示金币
+                // 显示金币和连胜数
                 Container(
                   padding: const EdgeInsets.all(8.0),
                   child: Row(
@@ -472,6 +492,16 @@ class _BattleBoardState extends State<BattleBoard> {
                       const SizedBox(width: 4),
                       Text(
                         '金币: $coins',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Icon(Icons.star, color: Colors.yellow),
+                      const SizedBox(width: 4),
+                      Text(
+                        '连胜: $_winStreak',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -862,13 +892,15 @@ class _BattleBoardState extends State<BattleBoard> {
         coins += victoryReward;
         _isBattleStarted = false;
         _updatePlayerMaxUnitLevel();
+        _winStreak++; // 增加連勝數
       });
     } else if (!hasPlayer) {
       setState(() {
         _gameOver = true;
         _battleResult = "失败！";
         _isBattleStarted = false;
-        _restoreBattleState(); // 失敗時恢復戰鬥狀態
+        _restoreBattleState();
+        _winStreak = 0; // 重置連勝數
       });
     }
   }
@@ -892,10 +924,12 @@ class EnemyConfig {
   final int row;
   final int col;
   final String unitName;
+  final double statBonus; // 屬性加成
 
   EnemyConfig({
     required this.row,
     required this.col,
     required this.unitName,
+    this.statBonus = 1.0,
   });
 } 
