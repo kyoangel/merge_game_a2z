@@ -26,7 +26,7 @@ class _BattleBoardState extends State<BattleBoard> {
   // 添加计时器变量
   DateTime? _lastPlayerBulletTime;
   DateTime? _lastEnemyBulletTime;
-  static const bulletCooldown = Duration(seconds: 2); // 子弹冷却时间
+  static const bulletCooldown = Duration(seconds: 1); // 子弹冷却时间
   
   int coins = 0; // 金币数量
   static const int unitCost = 100; // 新增角色所需金币
@@ -36,6 +36,38 @@ class _BattleBoardState extends State<BattleBoard> {
   bool _gameOver = false;
   String? _battleResult;
   
+  // 關卡系統
+  int currentLevel = 1;
+  List<LevelConfig> levelConfigs = [
+    LevelConfig(
+      level: 1,
+      enemies: [
+        EnemyConfig(row: 1, col: 2, health: 100, attackPower: 10),
+      ],
+      reward: 200,
+    ),
+    LevelConfig(
+      level: 2,
+      enemies: [
+        EnemyConfig(row: 1, col: 1, health: 120, attackPower: 12),
+        EnemyConfig(row: 1, col: 3, health: 120, attackPower: 12),
+      ],
+      reward: 300,
+    ),
+    LevelConfig(
+      level: 3,
+      enemies: [
+        EnemyConfig(row: 0, col: 2, health: 150, attackPower: 15),
+        EnemyConfig(row: 1, col: 1, health: 150, attackPower: 15),
+        EnemyConfig(row: 1, col: 3, health: 150, attackPower: 15),
+      ],
+      reward: 400,
+    ),
+  ];
+
+  // 測試模式
+  bool isTestMode = false;
+  
   @override
   void initState() {
     super.initState();
@@ -44,18 +76,20 @@ class _BattleBoardState extends State<BattleBoard> {
   }
   
   void _initializeBoard() {
-    // 初始化为一个 5x6 的空棋盘
     battleBoard = List.generate(totalRows, (row) {
       return List.generate(cols, (col) => null);
     });
     
-    // 在敌方区域中间位置放置一个单位
-    battleBoard[1][2] = BattleUnit(
-      type: UnitType.enemy,
-      position: Position(1, 2),
-    );
+    // 根據當前關卡配置初始化敵人
+    final currentConfig = levelConfigs[currentLevel - 1];
+    for (var enemy in currentConfig.enemies) {
+      battleBoard[enemy.row][enemy.col] = BattleUnit(
+        type: UnitType.enemy,
+        position: Position(enemy.row, enemy.col),
+      )..health = enemy.health
+       ..attackPower = enemy.attackPower;
+    }
 
-    // 设置初始金币数量
     coins = 1000;
   }
 
@@ -246,119 +280,212 @@ class _BattleBoardState extends State<BattleBoard> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final availableHeight = constraints.maxHeight;
-        
-        return Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+  // 測試功能按鈕
+  Widget _buildTestPanel() {
+    if (!isTestMode) return const SizedBox.shrink();
+    
+    return Positioned(
+      top: 20,
+      left: 20,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.7),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 显示金币
-            Container(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.monetization_on, color: Colors.amber),
-                  const SizedBox(width: 4),
-                  Text(
-                    '金币: $coins',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+            Text('測試模式 - 關卡 $currentLevel', 
+              style: const TextStyle(color: Colors.white)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: _previousLevel,
+                  child: const Text('上一關'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _nextLevel,
+                  child: const Text('下一關'),
+                ),
+              ],
             ),
-            
-            Expanded(
-              child: Stack(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16.0),
-                    child: _buildBoard(
-                      constraints: constraints,
-                      borderColor: Colors.grey,
-                    ),
-                  ),
-                  
-                  // 显示战斗结果
-                  if (_gameOver && _battleResult != null)
-                    Center(
-                      child: Container(
-                        padding: const EdgeInsets.all(16.0),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _battleResult!,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: () {
-                                // 重置游戏
-                                setState(() {
-                                  _gameOver = false;
-                                  _battleResult = null;
-                                  _buttonsVisible = true;
-                                  _initializeBoard();
-                                });
-                              },
-                              child: const Text('重新开始'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            
-            // 按钮布局
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Visibility(
-                    visible: _buttonsVisible,
-                    maintainSize: true,
-                    maintainAnimation: true,
-                    maintainState: true,
-                    child: ElevatedButton(
-                      onPressed: _addPlayerUnit,
-                      child: const Text('新增玩家角色'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Visibility(
-                    visible: _buttonsVisible,
-                    maintainSize: true,
-                    maintainAnimation: true,
-                    maintainState: true,
-                    child: ElevatedButton(
-                      onPressed: _startBattle,
-                      child: const Text('開戰'),
-                    ),
-                  ),
-                ],
-              ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _toggleTestMode,
+              child: const Text('關閉測試模式'),
             ),
           ],
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  void _toggleTestMode() {
+    setState(() {
+      isTestMode = !isTestMode;
+    });
+  }
+
+  void _previousLevel() {
+    if (currentLevel > 1) {
+      setState(() {
+        currentLevel--;
+        _initializeBoard();
+      });
+    }
+  }
+
+  void _nextLevel() {
+    if (currentLevel < levelConfigs.length) {
+      setState(() {
+        currentLevel++;
+        _initializeBoard();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final availableHeight = constraints.maxHeight;
+            
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 显示金币
+                Container(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.monetization_on, color: Colors.amber),
+                      const SizedBox(width: 4),
+                      Text(
+                        '金币: $coins',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                Expanded(
+                  child: Stack(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16.0),
+                        child: _buildBoard(
+                          constraints: constraints,
+                          borderColor: Colors.grey,
+                        ),
+                      ),
+                      
+                      // 显示战斗结果
+                      if (_gameOver && _battleResult != null)
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(16.0),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.8),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _battleResult!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    // 重置游戏
+                                    setState(() {
+                                      _gameOver = false;
+                                      _battleResult = null;
+                                      _buttonsVisible = true;
+                                      _initializeBoard();
+                                    });
+                                  },
+                                  child: const Text('重新开始'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                
+                // 按钮布局
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Visibility(
+                        visible: _buttonsVisible,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: ElevatedButton(
+                          onPressed: _addPlayerUnit,
+                          child: const Text('新增玩家角色'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Visibility(
+                        visible: _buttonsVisible,
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: ElevatedButton(
+                          onPressed: _startBattle,
+                          child: const Text('開戰'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+        _buildTestPanel(),
+        Positioned(
+          top: 20,
+          right: 20,
+          child: Column(
+            children: [
+              Text(
+                '金幣: $coins',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.amber,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: _toggleTestMode,
+                child: const Text('測試模式'),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -592,4 +719,32 @@ class _BattleBoardState extends State<BattleBoard> {
     }
     return unit.type == UnitType.player ? Colors.blue[100]! : Colors.red[100]!;
   }
+}
+
+// 關卡配置類
+class LevelConfig {
+  final int level;
+  final List<EnemyConfig> enemies;
+  final int reward;
+
+  LevelConfig({
+    required this.level,
+    required this.enemies,
+    required this.reward,
+  });
+}
+
+// 敵人配置類
+class EnemyConfig {
+  final int row;
+  final int col;
+  final int health;
+  final int attackPower;
+
+  EnemyConfig({
+    required this.row,
+    required this.col,
+    required this.health,
+    required this.attackPower,
+  });
 } 
