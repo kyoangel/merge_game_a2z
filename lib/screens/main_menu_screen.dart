@@ -16,21 +16,21 @@ class MainMenuScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ElevatedButton(
-              onPressed: () {
-                context.read<GameManager>().startBattle();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => BattleScreen(
-                      coins: gameManager.coins,
-                      winStreak: gameManager.winStreak,
-                      currentLevel: gameManager.currentLevel,
-                    ),
-                  ),
-                );
-              },
-              child: const Text('戰鬥畫面'),
-            ),
+            // ElevatedButton(
+            //   onPressed: () {
+            //     context.read<GameManager>().startBattle();
+            //     Navigator.of(context).push(
+            //       MaterialPageRoute(
+            //         builder: (context) => BattleScreen(
+            //           coins: gameManager.coins,
+            //           winStreak: gameManager.winStreak,
+            //           currentLevel: gameManager.currentLevel,
+            //         ),
+            //       ),
+            //     );
+            //   },
+            //   child: const Text('戰鬥畫面'),
+            // ),
             const SizedBox(height: 30),
             const Text(
               '進化跑酷',

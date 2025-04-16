@@ -829,11 +829,13 @@ class _BattleBoardState extends State<BattleBoard> {
                 final from = receivedUnit.position;
                 final to = targetUnit.position;
 
-                receivedUnit.updatePosition(to);
-                targetUnit.updatePosition(from);
+                if (from != to) {
+                  receivedUnit.updatePosition(to);
+                  targetUnit.updatePosition(from);
 
-                battleBoard[from.row][from.col] = targetUnit;
-                battleBoard[to.row][to.col] = receivedUnit;
+                  battleBoard[from.row][from.col] = targetUnit;
+                  battleBoard[to.row][to.col] = receivedUnit;
+                }
               }
             } else {
               // ➡️ 普通移動
