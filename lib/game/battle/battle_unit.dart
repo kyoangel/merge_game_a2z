@@ -6,6 +6,16 @@ class Position {
   final int col;
   
   Position(this.row, this.col);
+
+  Map<String, dynamic> toJson() => {
+    'row': row,
+    'col': col,
+  };
+
+  factory Position.fromJson(Map<String, dynamic> json) => Position(
+    json['row'] as int,
+    json['col'] as int,
+  );
 }
 
 enum UnitType {
@@ -103,5 +113,28 @@ class BattleUnit {
     print('子弹生成: shooter=${unitName}, position=(${position.row}, ${position.col}), target=(${targetPosition.row}, ${targetPosition.col})');
     // 需要通过某种方式访问 BattleBoard 的 bullets 列表
     // 例如，通过回调或事件系统将子弹添加到 BattleBoard
+  }
+
+  Map<String, dynamic> toJson() => {
+    'type': type.toString(),
+    'position': position.toJson(),
+    'health': health,
+    'attackPower': attackPower,
+    'unitName': unitName,
+    'level': level,
+  };
+
+  factory BattleUnit.fromJson(Map<String, dynamic> json) {
+    final unit = BattleUnit(
+      type: UnitType.values.firstWhere(
+        (e) => e.toString() == json['type'],
+      ),
+      position: Position.fromJson(json['position'] as Map<String, dynamic>),
+      unitName: json['unitName'] as String,
+      level: json['level'] as int,
+    );
+    unit.health = json['health'] as int;
+    unit.attackPower = json['attackPower'] as int;
+    return unit;
   }
 } 

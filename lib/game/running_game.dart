@@ -10,11 +10,7 @@ import 'components/road.dart';
 import 'components/coin.dart';
 import 'components/obstacle.dart';
 
-typedef GameStateCallback = void Function({
-  required int coins,
-  required int winStreak,
-  required int currentLevel,
-});
+typedef GameStateCallback = void Function({required int coins});
 
 class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
   late final Player player;
@@ -31,8 +27,6 @@ class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
   
   // 遊戲進度
   int coins = 0;
-  int winStreak = 0;
-  int currentLevel = 1;
   static const int coinValue = 50;
   
   // 生成間隔
@@ -49,8 +43,6 @@ class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
     required this.onGameComplete,
     this.onGameStateChanged,
     this.coins = 0,
-    this.winStreak = 0,
-    this.currentLevel = 1,
   });
   
   @override
@@ -116,24 +108,14 @@ class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
   
   void gameOver() {
     pauseEngine();
-    // 遊戲失敗時也進入戰鬥場景，但不增加連勝
-    onGameComplete(
-      coins: coins,
-      winStreak: 0, // 失敗時重置連勝
-      currentLevel: currentLevel,
-    );
-    onGameStateChanged?.call(); // 通知遊戲狀態變更
+    onGameComplete(coins: coins);
+    onGameStateChanged?.call();
   }
   
   void victory() {
     pauseEngine();
-    // 直接調用回調函數，進入戰鬥場景
-    onGameComplete(
-      coins: coins,
-      winStreak: winStreak + 1, // 勝利時增加連勝
-      currentLevel: currentLevel + 1, // 勝利時增加關卡
-    );
-    onGameStateChanged?.call(); // 通知遊戲狀態變更
+    onGameComplete(coins: coins);
+    onGameStateChanged?.call();
   }
   
   @override
@@ -175,25 +157,9 @@ class GameInfoOverlay extends PositionComponent with HasGameRef<RunningGame> {
       text: TextSpan(
         children: [
           TextSpan(
-            text: '金幣: ${gameRef.coins}   ',
+            text: '金幣: ${gameRef.coins}',
             style: const TextStyle(
               color: Colors.amber,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          TextSpan(
-            text: '連勝: ${gameRef.winStreak}   ',
-            style: const TextStyle(
-              color: Colors.yellow,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          TextSpan(
-            text: '關卡: ${gameRef.currentLevel}',
-            style: const TextStyle(
-              color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),

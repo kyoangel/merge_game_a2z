@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flame/game.dart';
 import 'package:provider/provider.dart';
-import '../game/running_game.dart';
-import '../game/battle/battle_board.dart';
+import 'package:flame/game.dart';
 import '../game/game_manager.dart';
+import '../game/running_game.dart';
 import 'battle_screen.dart';
 
 class RunningScreen extends StatelessWidget {
@@ -11,34 +10,30 @@ class RunningScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gameManager = context.watch<GameManager>();
+    final gameManager = context.read<GameManager>();
     
-    return GameWidget(
-      game: RunningGame(
-        coins: gameManager.coins,
-        winStreak: gameManager.winStreak,
-        currentLevel: gameManager.currentLevel,
-        onGameComplete: ({
-          required int coins,
-          required int winStreak,
-          required int currentLevel,
-        }) {
-          // 更新 GameManager 的狀態
-          gameManager.addCoins(coins - gameManager.coins);
-          gameManager.updateWinStreak(winStreak);
-          gameManager.currentLevel = currentLevel;
-          
-          // 切換到戰鬥場景
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => BattleScreen(
-                coins: coins,
-                winStreak: winStreak,
-                currentLevel: currentLevel,
-              ),
-            ),
-          );
-        },
+    return Scaffold(
+      body: SafeArea(
+        child: GameWidget(
+          game: RunningGame(
+            coins: gameManager.coins,
+            onGameComplete: ({required int coins}) {
+              // 更新遊戲管理器中的金幣
+              gameManager.addCoins(coins - gameManager.coins);
+              
+              // 進入戰鬥場景
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) => BattleScreen(
+                    coins: gameManager.coins,
+                    winStreak: gameManager.winStreak,
+                    currentLevel: gameManager.currentLevel,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
