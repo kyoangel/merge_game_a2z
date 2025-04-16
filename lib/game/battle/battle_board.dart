@@ -28,59 +28,62 @@ class _BattleBoardState extends State<BattleBoard> {
   static const int totalRows = 6; // 总行数：6行
   static const int cols = 5;
   static const int playerStartRow = 3; // 玩家区域从第3行开始
-  
+
   // 使用单个棋盘来表示整个战场
   List<List<BattleUnit?>> battleBoard = [];
-  
+
   BattleUnit? selectedUnit;
   List<Bullet> bullets = [];
   bool _buttonsVisible = true;
   bool _isBattleStarted = false;
-  
+
   // 添加计时器变量
   DateTime? _lastPlayerBulletTime;
   DateTime? _lastEnemyBulletTime;
   static const bulletCooldown = Duration(seconds: 1); // 子弹冷却时间
-  
+
   late int coins;
   late int winStreak;
   late int currentLevel;
   static const int unitCost = 100; // 新增角色所需金币
   static const int victoryReward = 200; // 胜利奖励
   static const int unitKillReward = 50; // 击杀敌人奖励
-  
+
   bool _gameOver = false;
   String? _battleResult;
-  
+
   // 關卡系統
   int _playerMaxUnitLevel = 1; // 追蹤玩家最高單位等級
-  
+
   // 保存玩家和敵方單位狀態
   List<List<BattleUnit?>>? _savedPlayerUnits;
   List<List<BattleUnit?>>? _savedEnemyUnits;
 
   int _maxEnemyLevel = 1; // 追蹤敵方最高等級
   int _maxEnemyCount = 3; // 追蹤敵方最大數量
-  
+
   // 添加定時器引用
   Timer? _autoAttackTimer;
-  
+
   // 動態生成關卡配置
   LevelConfig _generateLevelConfig() {
     final random = Random();
-    
+
     // 計算敵人數量
     final baseEnemyCount = 3;
     final winStreakBonus = (winStreak ~/ 2);
     final enemyCount = max(baseEnemyCount + winStreakBonus, 3); // 確保至少有3個敵人
-    print('計算敵人數量: base=$baseEnemyCount, bonus=$winStreakBonus, total=$enemyCount');
-    
+    print(
+        '計算敵人數量: base=$baseEnemyCount, bonus=$winStreakBonus, total=$enemyCount');
+
     // 計算敵人等級
     final baseEnemyLevel = max(1, currentLevel ~/ 2);
     final winStreakLevelBonus = (winStreak ~/ 3);
-    final maxEnemyLevel = min(baseEnemyLevel + winStreakLevelBonus, 26); // 限制最高等級為Z
-    print('計算敵人等級: base=$baseEnemyLevel, bonus=$winStreakLevelBonus, max=$maxEnemyLevel');
-    
+    final maxEnemyLevel =
+        min(baseEnemyLevel + winStreakLevelBonus, 26); // 限制最高等級為Z
+    print(
+        '計算敵人等級: base=$baseEnemyLevel, bonus=$winStreakLevelBonus, max=$maxEnemyLevel');
+
     // 生成敵人位置
     final availablePositions = <Position>[];
     for (var row = 0; row < playerStartRow; row++) {
@@ -89,18 +92,19 @@ class _BattleBoardState extends State<BattleBoard> {
       }
     }
     availablePositions.shuffle(random);
-    
+
     final enemies = <EnemyConfig>[];
     print('可用位置數量: ${availablePositions.length}');
-    
+
     // 生成敵人
     for (var i = 0; i < min(enemyCount, availablePositions.length); i++) {
       final position = availablePositions[i];
       final enemyLevel = random.nextInt(maxEnemyLevel) + 1;
       final enemyName = String.fromCharCode('A'.codeUnitAt(0) + enemyLevel - 1);
-      
-      print('生成敵人 $i: level=$enemyLevel, name=$enemyName, position=(${position.row}, ${position.col})');
-      
+
+      print(
+          '生成敵人 $i: level=$enemyLevel, name=$enemyName, position=(${position.row}, ${position.col})');
+
       enemies.add(EnemyConfig(
         row: position.row,
         col: position.col,
@@ -108,14 +112,14 @@ class _BattleBoardState extends State<BattleBoard> {
         statBonus: 1.0 + (winStreak * 0.1), // 根據連勝增加屬性加成
       ));
     }
-    
+
     // 計算獎勵
     final baseReward = 200;
     final winStreakRewardBonus = winStreak * 50;
     final reward = baseReward + winStreakRewardBonus;
-    
+
     print('關卡配置完成: 敵人數量=${enemies.length}, 獎勵=$reward');
-    
+
     return LevelConfig(
       level: currentLevel,
       enemies: enemies,
@@ -125,7 +129,7 @@ class _BattleBoardState extends State<BattleBoard> {
 
   // 測試模式
   bool isTestMode = false;
-  
+
   @override
   void initState() {
     super.initState();
@@ -135,7 +139,7 @@ class _BattleBoardState extends State<BattleBoard> {
     _initializeBoard();
     _startAutoAttack();
   }
-  
+
   @override
   void dispose() {
     // 清理定時器
@@ -145,12 +149,12 @@ class _BattleBoardState extends State<BattleBoard> {
 
   void _initializeBoard() {
     final gameManager = context.read<GameManager>();
-    
+
     // 初始化空的棋盤
     battleBoard = List.generate(totalRows, (row) {
       return List.generate(cols, (col) => null);
     });
-    
+
     // 檢查是否有有效的保存狀態
     bool hasValidSavedState = false;
     if (gameManager.savedPlayerUnits != null) {
@@ -165,10 +169,10 @@ class _BattleBoardState extends State<BattleBoard> {
         if (hasValidSavedState) break;
       }
     }
-    
+
     if (hasValidSavedState) {
       print('恢復保存的玩家單位');
-      
+
       // 恢復玩家單位
       for (var row = playerStartRow; row < totalRows; row++) {
         for (var col = 0; col < cols; col++) {
@@ -186,14 +190,15 @@ class _BattleBoardState extends State<BattleBoard> {
         }
       }
     }
-    
+
     // 檢查是否有保存的敵人配置
     if (gameManager.currentEnemyConfig != null) {
       print('使用保存的敵人配置');
-      
+
       // 使用保存的敵人配置
       for (var enemy in gameManager.currentEnemyConfig!) {
-        print('生成敵人: row=${enemy.row}, col=${enemy.col}, name=${enemy.unitName}');
+        print(
+            '生成敵人: row=${enemy.row}, col=${enemy.col}, name=${enemy.unitName}');
         final unit = BattleUnit(
           type: UnitType.enemy,
           position: Position(enemy.row, enemy.col),
@@ -206,23 +211,29 @@ class _BattleBoardState extends State<BattleBoard> {
       }
     } else {
       print('生成新的敵人配置');
-      
+
       // 生成新的敵人配置
       final currentConfig = _generateLevelConfig();
-      print('關卡配置: Level=${currentConfig.level}, 敵人數量=${currentConfig.enemies.length}');
-      
+      print(
+          '關卡配置: Level=${currentConfig.level}, 敵人數量=${currentConfig.enemies.length}');
+
       // 保存新生成的敵人配置
       gameManager.saveBattleState(
-        playerUnits: gameManager.savedPlayerUnits ?? List.generate(totalRows, (row) => List.generate(cols, (col) => null)),
-        enemyUnits: gameManager.savedEnemyUnits ?? List.generate(totalRows, (row) => List.generate(cols, (col) => null)),
+        playerUnits: gameManager.savedPlayerUnits ??
+            List.generate(
+                totalRows, (row) => List.generate(cols, (col) => null)),
+        enemyUnits: gameManager.savedEnemyUnits ??
+            List.generate(
+                totalRows, (row) => List.generate(cols, (col) => null)),
         enemyConfig: currentConfig.enemies,
       );
-      
+
       // 生成敵人
       for (var enemy in currentConfig.enemies) {
         if (enemy.row >= playerStartRow) continue;
-        
-        print('生成敵人: row=${enemy.row}, col=${enemy.col}, name=${enemy.unitName}');
+
+        print(
+            '生成敵人: row=${enemy.row}, col=${enemy.col}, name=${enemy.unitName}');
         final unit = BattleUnit(
           type: UnitType.enemy,
           position: Position(enemy.row, enemy.col),
@@ -234,7 +245,7 @@ class _BattleBoardState extends State<BattleBoard> {
         battleBoard[enemy.row][enemy.col] = unit;
       }
     }
-    
+
     // 打印當前棋盤狀態
     _printBoardState();
   }
@@ -243,26 +254,27 @@ class _BattleBoardState extends State<BattleBoard> {
   void _printBoardState() {
     print('當前棋盤狀態:');
     for (var row = 0; row < totalRows; row++) {
-        String rowStr = '';
-        for (var col = 0; col < cols; col++) {
-            final unit = battleBoard[row][col];
-            if (unit == null) {
-                rowStr += '- ';
-            } else {
-                rowStr += '${unit.type == UnitType.player ? "P" : "E"} ';
-            }
+      String rowStr = '';
+      for (var col = 0; col < cols; col++) {
+        final unit = battleBoard[row][col];
+        if (unit == null) {
+          rowStr += '- ';
+        } else {
+          rowStr += '${unit.type == UnitType.player ? "P" : "E"} ';
         }
-        print('$row: $rowStr');
+      }
+      print('$row: $rowStr');
     }
   }
 
   void _startAutoAttack() {
     // 取消現有的定時器（如果有的話）
     _autoAttackTimer?.cancel();
-    
+
     // 創建新的定時器
     _autoAttackTimer = Timer.periodic(Duration(milliseconds: 16), (timer) {
-      if (_isBattleStarted && mounted) { // 添加 mounted 檢查
+      if (_isBattleStarted && mounted) {
+        // 添加 mounted 檢查
         setState(() {
           _generateBullets();
           _moveBullets();
@@ -273,9 +285,9 @@ class _BattleBoardState extends State<BattleBoard> {
 
   void _generateBullets() {
     final now = DateTime.now();
-    
+
     // 玩家子弹生成
-    if (_lastPlayerBulletTime == null || 
+    if (_lastPlayerBulletTime == null ||
         now.difference(_lastPlayerBulletTime!) >= bulletCooldown) {
       // 遍历玩家单位
       for (var row = playerStartRow; row < totalRows; row++) {
@@ -290,7 +302,8 @@ class _BattleBoardState extends State<BattleBoard> {
                 damage: unit.attackPower,
                 targetPosition: targetPos,
               ));
-              print('玩家子弹生成: 从(${unit.position.row}, ${unit.position.col}) 射向 (${targetPos.row}, ${targetPos.col})');
+              print(
+                  '玩家子弹生成: 从(${unit.position.row}, ${unit.position.col}) 射向 (${targetPos.row}, ${targetPos.col})');
             }
           }
         }
@@ -299,7 +312,7 @@ class _BattleBoardState extends State<BattleBoard> {
     }
 
     // 敌人子弹生成
-    if (_lastEnemyBulletTime == null || 
+    if (_lastEnemyBulletTime == null ||
         now.difference(_lastEnemyBulletTime!) >= bulletCooldown) {
       // 遍历敌方单位
       for (var row = 0; row < playerStartRow; row++) {
@@ -314,7 +327,8 @@ class _BattleBoardState extends State<BattleBoard> {
                 damage: unit.attackPower,
                 targetPosition: targetPos,
               ));
-              print('敌人子弹生成: 从(${unit.position.row}, ${unit.position.col}) 射向 (${targetPos.row}, ${targetPos.col})');
+              print(
+                  '敌人子弹生成: 从(${unit.position.row}, ${unit.position.col}) 射向 (${targetPos.row}, ${targetPos.col})');
             }
           }
         }
@@ -358,7 +372,9 @@ class _BattleBoardState extends State<BattleBoard> {
   }
 
   double _calculateDistance(Position a, Position b) {
-    return ((a.row - b.row) * (a.row - b.row) + (a.col - b.col) * (a.col - b.col)).toDouble();
+    return ((a.row - b.row) * (a.row - b.row) +
+            (a.col - b.col) * (a.col - b.col))
+        .toDouble();
   }
 
   Position? _findNearestPlayer(Position from) {
@@ -382,8 +398,9 @@ class _BattleBoardState extends State<BattleBoard> {
   }
 
   void _applyDamage(Bullet bullet) {
-    print('子弹碰撞: shooter=${bullet.shooter.type}, position=(${bullet.position.row}, ${bullet.position.col}), damage=${bullet.damage}');
-    
+    print(
+        '子弹碰撞: shooter=${bullet.shooter.type}, position=(${bullet.position.row}, ${bullet.position.col}), damage=${bullet.damage}');
+
     // 找到目标单位
     BattleUnit? targetUnit;
     if (bullet.shooter.type == UnitType.player) {
@@ -402,10 +419,10 @@ class _BattleBoardState extends State<BattleBoard> {
             coins += unitKillReward;
           });
         }
-        
+
         // 移除死亡单位
         battleBoard[bullet.position.row][bullet.position.col] = null;
-        
+
         // 检查战斗结果
         _checkBattleResult();
       }
@@ -444,7 +461,7 @@ class _BattleBoardState extends State<BattleBoard> {
         return null;
       });
     });
-    
+
     // 保存敵方單位
     _savedEnemyUnits = List.generate(totalRows, (row) {
       return List.generate(cols, (col) {
@@ -464,12 +481,12 @@ class _BattleBoardState extends State<BattleBoard> {
 
   void _restoreBattleState() {
     if (_savedPlayerUnits == null || _savedEnemyUnits == null) return;
-    
+
     // 清空棋盤
     battleBoard = List.generate(totalRows, (row) {
       return List.generate(cols, (col) => null);
     });
-    
+
     // 恢復玩家單位
     for (var row = 0; row < totalRows; row++) {
       for (var col = 0; col < cols; col++) {
@@ -479,7 +496,7 @@ class _BattleBoardState extends State<BattleBoard> {
         }
       }
     }
-    
+
     // 恢復敵方單位
     for (var row = 0; row < totalRows; row++) {
       for (var col = 0; col < cols; col++) {
@@ -494,7 +511,7 @@ class _BattleBoardState extends State<BattleBoard> {
   // 測試功能按鈕
   Widget _buildTestPanel() {
     if (!isTestMode) return const SizedBox.shrink();
-    
+
     return Positioned(
       top: 20,
       left: 20,
@@ -507,8 +524,8 @@ class _BattleBoardState extends State<BattleBoard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('測試模式 - 關卡 $currentLevel', 
-              style: const TextStyle(color: Colors.white)),
+            Text('測試模式 - 關卡 $currentLevel',
+                style: const TextStyle(color: Colors.white)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -555,12 +572,12 @@ class _BattleBoardState extends State<BattleBoard> {
       _battleResult = null;
       _buttonsVisible = true;
       bullets.clear(); // 清除所有子彈
-      
+
       // 清空棋盤
       battleBoard = List.generate(totalRows, (row) {
         return List.generate(cols, (col) => null);
       });
-      
+
       // 恢復玩家單位
       if (_savedPlayerUnits != null) {
         for (var row = 0; row < totalRows; row++) {
@@ -572,7 +589,7 @@ class _BattleBoardState extends State<BattleBoard> {
           }
         }
       }
-      
+
       // 生成新的敵人
       final currentConfig = _generateLevelConfig();
       for (var enemy in currentConfig.enemies) {
@@ -586,7 +603,7 @@ class _BattleBoardState extends State<BattleBoard> {
         unit.attackPower = (unit.attackPower * enemy.statBonus).round();
         battleBoard[enemy.row][enemy.col] = unit;
       }
-      
+
       currentLevel++;
     });
   }
@@ -608,7 +625,7 @@ class _BattleBoardState extends State<BattleBoard> {
         LayoutBuilder(
           builder: (context, constraints) {
             final availableHeight = constraints.maxHeight;
-            
+
             return Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -650,7 +667,7 @@ class _BattleBoardState extends State<BattleBoard> {
                     ],
                   ),
                 ),
-                
+
                 Expanded(
                   child: Stack(
                     children: [
@@ -661,14 +678,14 @@ class _BattleBoardState extends State<BattleBoard> {
                           borderColor: Colors.grey,
                         ),
                       ),
-                      
+
                       // 显示战斗结果
                       if (_gameOver && _battleResult != null)
                         _buildBattleResultDialog(),
                     ],
                   ),
                 ),
-                
+
                 // 按钮布局
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -716,7 +733,7 @@ class _BattleBoardState extends State<BattleBoard> {
       builder: (context, constraints) {
         final cellWidth = constraints.maxWidth / cols;
         final cellHeight = constraints.maxHeight / totalRows;
-        
+
         return Stack(
           children: [
             Container(
@@ -749,7 +766,7 @@ class _BattleBoardState extends State<BattleBoard> {
             ...bullets.map((bullet) {
               final bulletLeft = bullet.x * cellWidth;
               final bulletTop = bullet.y * cellHeight;
-              
+
               return Positioned(
                 left: bulletLeft,
                 top: bulletTop,
@@ -758,7 +775,9 @@ class _BattleBoardState extends State<BattleBoard> {
                   height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: bullet.shooter.type == UnitType.player ? Colors.blue : Colors.red,
+                    color: bullet.shooter.type == UnitType.player
+                        ? Colors.blue
+                        : Colors.red,
                     boxShadow: [
                       BoxShadow(
                         color: Colors.white.withOpacity(0.5),
@@ -779,7 +798,8 @@ class _BattleBoardState extends State<BattleBoard> {
   Widget _buildCell(BattleUnit? unit, bool isEnemy, int index) {
     return GestureDetector(
       onTap: () {
-        if (!isEnemy) {  // 只允許在玩家區域操作
+        if (!isEnemy) {
+          // 只允許在玩家區域操作
           _handleCellTap(unit);
         }
       },
@@ -794,18 +814,31 @@ class _BattleBoardState extends State<BattleBoard> {
             final row = index ~/ cols;
             final col = index % cols;
             final newPosition = Position(row, col);
-            
+
             // 检查是否可以合成
             final targetUnit = battleBoard[newPosition.row][newPosition.col];
-            if (targetUnit != null && 
-                targetUnit.type == UnitType.player && 
-                targetUnit.unitName == receivedUnit.unitName) {
-              // 合成
-              targetUnit.merge(receivedUnit);
-              battleBoard[receivedUnit.position.row][receivedUnit.position.col] = null;
+            if (targetUnit != null && targetUnit.type == UnitType.player) {
+              if (targetUnit.unitName == receivedUnit.unitName &&
+                  targetUnit.level == receivedUnit.level) {
+                // ✅ 合成條件：名稱與等級都相同
+                targetUnit.merge(receivedUnit);
+                battleBoard[receivedUnit.position.row]
+                    [receivedUnit.position.col] = null;
+              } else {
+                // 🔁 名稱或等級不同，交換位置
+                final from = receivedUnit.position;
+                final to = targetUnit.position;
+
+                receivedUnit.updatePosition(to);
+                targetUnit.updatePosition(from);
+
+                battleBoard[from.row][from.col] = targetUnit;
+                battleBoard[to.row][to.col] = receivedUnit;
+              }
             } else {
-              // 普通移动
-              battleBoard[receivedUnit.position.row][receivedUnit.position.col] = null;
+              // ➡️ 普通移動
+              final from = receivedUnit.position;
+              battleBoard[from.row][from.col] = null;
               battleBoard[newPosition.row][newPosition.col] = receivedUnit;
               receivedUnit.updatePosition(newPosition);
             }
@@ -851,7 +884,9 @@ class _BattleBoardState extends State<BattleBoard> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
-                                unit.type == UnitType.player ? unit.unitName : 'E',
+                                unit.type == UnitType.player
+                                    ? unit.unitName
+                                    : 'E',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -913,8 +948,9 @@ class _BattleBoardState extends State<BattleBoard> {
   void _handleCellTap(BattleUnit? unit) {
     setState(() {
       if (unit != null && unit.type == UnitType.player) {
-        print('角色被点击: 类型=${unit.type}, 位置=(${unit.position.row}, ${unit.position.col})');
-        
+        print(
+            '角色被点击: 类型=${unit.type}, 位置=(${unit.position.row}, ${unit.position.col})');
+
         selectedUnit = selectedUnit == unit ? null : unit;
 
         Position? target = _findNearestEnemy(unit.position);
@@ -933,7 +969,8 @@ class _BattleBoardState extends State<BattleBoard> {
           battleBoard.indexWhere((row) => row.contains(unit)),
           battleBoard.firstWhere((row) => row.contains(unit)).indexOf(unit),
         );
-        battleBoard[selectedUnit!.position.row][selectedUnit!.position.col] = null;
+        battleBoard[selectedUnit!.position.row][selectedUnit!.position.col] =
+            null;
         battleBoard[newPosition.row][newPosition.col] = selectedUnit;
         selectedUnit!.updatePosition(newPosition);
         selectedUnit = null;
@@ -975,13 +1012,13 @@ class _BattleBoardState extends State<BattleBoard> {
         winStreak++;
         bullets.clear();
         currentLevel++;
-        
+
         // 立即更新 GameManager 中的金幣和連勝數
         final gameManager = context.read<GameManager>();
         gameManager.addCoins(victoryReward);
         gameManager.updateWinStreak(winStreak);
         gameManager.updateLevel(currentLevel);
-        
+
         // 清除當前的敵人配置，這樣下一關會生成新的敵人
         gameManager.currentEnemyConfig = null;
       });
@@ -993,7 +1030,7 @@ class _BattleBoardState extends State<BattleBoard> {
         _restoreBattleState();
         winStreak = 0;
         bullets.clear();
-        
+
         // 失敗時也要更新 GameManager 中的連勝數
         final gameManager = context.read<GameManager>();
         gameManager.updateWinStreak(0);
@@ -1025,14 +1062,14 @@ class _BattleBoardState extends State<BattleBoard> {
             ElevatedButton(
               onPressed: () {
                 final gameManager = context.read<GameManager>();
-                
+
                 if (_battleResult == "勝利！") {
                   // 保存當前玩家單位狀態（只保存玩家區域的單位）
                   List<List<BattleUnit?>> playerUnits = List.generate(
                     totalRows,
                     (row) => List.generate(cols, (col) => null),
                   );
-                  
+
                   for (var row = playerStartRow; row < totalRows; row++) {
                     for (var col = 0; col < cols; col++) {
                       final unit = battleBoard[row][col];
@@ -1047,7 +1084,7 @@ class _BattleBoardState extends State<BattleBoard> {
                       }
                     }
                   }
-                  
+
                   // 保存玩家單位狀態
                   gameManager.saveBattleState(
                     playerUnits: playerUnits,
@@ -1057,7 +1094,7 @@ class _BattleBoardState extends State<BattleBoard> {
                     ),
                   );
                 }
-                
+
                 // 返回跑酷遊戲
                 Navigator.of(context).pushReplacement(
                   MaterialPageRoute(
@@ -1072,4 +1109,4 @@ class _BattleBoardState extends State<BattleBoard> {
       ),
     );
   }
-} 
+}
