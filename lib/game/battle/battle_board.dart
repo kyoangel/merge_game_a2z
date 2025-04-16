@@ -44,10 +44,11 @@ class _BattleBoardState extends State<BattleBoard> {
   // 保存玩家和敵方單位狀態
   List<List<BattleUnit?>>? _savedPlayerUnits;
   List<List<BattleUnit?>>? _savedEnemyUnits;
-  int? _savedCoins;
 
   int _winStreak = 0; // 追蹤連勝數
   static const int maxWinStreak = 10; // 最大連勝數
+  int _maxEnemyLevel = 1; // 追蹤敵方最高等級
+  int _maxEnemyCount = 3; // 追蹤敵方最大數量
   
   // 動態生成關卡配置
   LevelConfig _generateLevelConfig() {
@@ -55,17 +56,20 @@ class _BattleBoardState extends State<BattleBoard> {
     
     // 計算敵人數量
     final baseEnemyCount = 3;
-    final winStreakBonus = (_winStreak ~/ 2); // 每2連勝增加1個敵人
-    final enemyCount = min(baseEnemyCount + winStreakBonus, 10); // 最多12個敵人
+    final winStreakBonus = (_winStreak ~/ 2);
+    final newEnemyCount = min(baseEnemyCount + winStreakBonus, 10);
+    _maxEnemyCount = max(_maxEnemyCount, newEnemyCount); // 確保敵人數量不會減少
     
     // 計算敵人等級
     final playerMaxLevel = _playerMaxUnitLevel;
-    final winStreakLevelBonus = (_winStreak ~/ 3); // 每3連勝敵人等級+1
-    final baseEnemyLevel = playerMaxLevel + winStreakLevelBonus;
-    final enemyLevelVariation = 2; // 敵人等級變化範圍
+    final winStreakLevelBonus = (_winStreak ~/ 3);
+    final newEnemyLevel = playerMaxLevel + winStreakLevelBonus;
+    _maxEnemyLevel = max(_maxEnemyLevel, newEnemyLevel); // 確保敵人等級不會降低
+    
+    final enemyLevelVariation = 2;
     
     // 計算敵人屬性加成
-    final winStreakStatBonus = 1.0 + (_winStreak * 0.1); // 每連勝增加10%屬性
+    final winStreakStatBonus = 1.0 + (_winStreak * 0.1);
     
     final enemies = <EnemyConfig>[];
     
@@ -79,12 +83,12 @@ class _BattleBoardState extends State<BattleBoard> {
     availablePositions.shuffle(random);
     
     // 生成敵人
-    for (var i = 0; i < enemyCount; i++) {
+    for (var i = 0; i < _maxEnemyCount; i++) {
       if (availablePositions.isEmpty) break;
       
       final position = availablePositions.removeLast();
       final levelVariation = random.nextInt(enemyLevelVariation * 2 + 1) - enemyLevelVariation;
-      final enemyLevel = max(1, baseEnemyLevel + levelVariation);
+      final enemyLevel = max(1, _maxEnemyLevel + levelVariation);
       final enemyName = String.fromCharCode('A'.codeUnitAt(0) + enemyLevel - 1);
       
       enemies.add(EnemyConfig(
@@ -97,7 +101,7 @@ class _BattleBoardState extends State<BattleBoard> {
     
     // 計算獎勵
     final baseReward = 200;
-    final winStreakRewardBonus = _winStreak * 50; // 每連勝增加50金幣獎勵
+    final winStreakRewardBonus = _winStreak * 50;
     final reward = baseReward + winStreakRewardBonus;
     
     return LevelConfig(
@@ -304,9 +308,6 @@ class _BattleBoardState extends State<BattleBoard> {
 
   // 保存玩家和敵方單位狀態
   void _saveBattleState() {
-    // 保存金錢
-    _savedCoins = coins;
-    
     // 保存玩家單位
     _savedPlayerUnits = List.generate(totalRows, (row) {
       return List.generate(cols, (col) {
@@ -341,10 +342,7 @@ class _BattleBoardState extends State<BattleBoard> {
   }
 
   void _restoreBattleState() {
-    if (_savedPlayerUnits == null || _savedEnemyUnits == null || _savedCoins == null) return;
-    
-    // 恢復金錢
-    coins = _savedCoins!;
+    if (_savedPlayerUnits == null || _savedEnemyUnits == null) return;
     
     // 清空棋盤
     battleBoard = List.generate(totalRows, (row) {
@@ -482,7 +480,7 @@ class _BattleBoardState extends State<BattleBoard> {
             return Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // 显示金币和连胜数
+                // 显示金幣、連勝數和敵人信息
                 Container(
                   padding: const EdgeInsets.all(8.0),
                   child: Row(
@@ -491,7 +489,7 @@ class _BattleBoardState extends State<BattleBoard> {
                       Icon(Icons.monetization_on, color: Colors.amber),
                       const SizedBox(width: 4),
                       Text(
-                        '金币: $coins',
+                        '金幣: $coins',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -501,7 +499,17 @@ class _BattleBoardState extends State<BattleBoard> {
                       Icon(Icons.star, color: Colors.yellow),
                       const SizedBox(width: 4),
                       Text(
-                        '连胜: $_winStreak',
+                        '連勝: $_winStreak',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Icon(Icons.warning, color: Colors.red),
+                      const SizedBox(width: 4),
+                      Text(
+                        '敵人: ${_maxEnemyCount}x${String.fromCharCode('A'.codeUnitAt(0) + _maxEnemyLevel - 1)}',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -555,7 +563,7 @@ class _BattleBoardState extends State<BattleBoard> {
                                         _gameOver = false;
                                         _battleResult = null;
                                         _buttonsVisible = true;
-                                        _restoreBattleState(); // 失敗時恢復戰鬥狀態
+                                        _restoreBattleState();
                                       });
                                     },
                                     child: const Text('重新挑戰'),
@@ -603,27 +611,6 @@ class _BattleBoardState extends State<BattleBoard> {
           },
         ),
         _buildTestPanel(),
-        Positioned(
-          top: 20,
-          right: 20,
-          child: Column(
-            children: [
-              Text(
-                '金幣: $coins',
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.amber,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: _toggleTestMode,
-                child: const Text('測試模式'),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -892,7 +879,7 @@ class _BattleBoardState extends State<BattleBoard> {
         coins += victoryReward;
         _isBattleStarted = false;
         _updatePlayerMaxUnitLevel();
-        _winStreak++; // 增加連勝數
+        _winStreak++;
       });
     } else if (!hasPlayer) {
       setState(() {
@@ -900,7 +887,7 @@ class _BattleBoardState extends State<BattleBoard> {
         _battleResult = "失败！";
         _isBattleStarted = false;
         _restoreBattleState();
-        _winStreak = 0; // 重置連勝數
+        _winStreak = 0;
       });
     }
   }
