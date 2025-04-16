@@ -23,23 +23,37 @@ class BattleUnit {
   
   // 基礎屬性計算公式
   static int calculateHealth(String unitName) {
-    final baseHealth = 100;
-    final growthRate = 1.5;
-    final level = unitName.codeUnitAt(0) - 'A'.codeUnitAt(0) + 1;
-    return (baseHealth * pow(growthRate, level - 1)).round();
+    final baseHealth = 50; // 降低基礎生命值
+    final growthRate = 1.6; // 提高成長率
+    final level = unitName.codeUnitAt(0) - 'A'.codeUnitAt(0);
+    
+    // 使用指數增長，讓高等級單位更強
+    return (baseHealth * pow(growthRate, level)).round();
   }
   
   static int calculateAttack(String unitName) {
-    final baseAttack = 10;
-    final growthRate = 1.5;
-    final level = unitName.codeUnitAt(0) - 'A'.codeUnitAt(0) + 1;
-    return (baseAttack * pow(growthRate, level - 1)).round();
+    final baseAttack = 5; // 降低基礎攻擊力
+    final growthRate = 1.3; // 提高成長率
+    final level = unitName.codeUnitAt(0) - 'A'.codeUnitAt(0);
+    
+    // 使用指數增長，讓高等級單位更強
+    return (baseAttack * pow(growthRate, level)).round();
+  }
+
+  // 獲取單位等級的數值表示（用於顯示和計算）
+  static int getUnitLevel(String unitName) {
+    return unitName.codeUnitAt(0) - 'A'.codeUnitAt(0) + 1;
   }
   
   // 獲取下一個等級的單位名稱
   static String getNextUnitName(String currentName) {
     if (currentName == 'Z') return 'Z'; // 最高等級
     return String.fromCharCode(currentName.codeUnitAt(0) + 1);
+  }
+
+  // 獲取單位的屬性描述
+  String getStatsDescription() {
+    return 'HP: $health\nATK: $attackPower';
   }
   
   BattleUnit({
