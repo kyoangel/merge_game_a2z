@@ -1,67 +1,77 @@
 import 'package:flame/components.dart';
 import 'package:flame/collisions.dart';
 import 'package:flutter/material.dart';
+import 'dart:math' show Random;
 import '../running_game.dart';
 import 'player.dart';
 
 class Coin extends PositionComponent with CollisionCallbacks, HasGameRef<RunningGame> {
-  static const double coinSize = 30;
-  static const int pointValue = 10;
+  static final Random _random = Random();
   bool isCollected = false;
-  final _paint = Paint()..color = Colors.yellow;  // 金幣顏色
   
-  Coin() : super(size: Vector2.all(coinSize)) {
-    add(CircleHitbox(
-      radius: coinSize * 0.4,
-      position: Vector2.all(coinSize * 0.1),
-    ));
+  Coin() : super(size: Vector2(20, 20)) {
+    add(CircleHitbox());
   }
   
   @override
   Future<void> onLoad() async {
+    // 初始化位置
     position = Vector2(
-      (gameRef.size.x - size.x) * gameRef.random.nextDouble(),
-      -size.y,
+      _random.nextDouble() * (gameRef.size.x - size.x),
+      -size.y
     );
   }
   
   @override
   void update(double dt) {
     super.update(dt);
+    
+    // 向下移動
     position.y += gameRef.gameSpeed * dt;
     
+    // 如果超出螢幕底部，移除金幣
     if (position.y > gameRef.size.y) {
       removeFromParent();
     }
   }
   
-  @override
-  void render(Canvas canvas) {
-    super.render(canvas);
-    canvas.drawCircle(
-      Offset(size.x / 2, size.y / 2),
-      size.x / 2,
-      _paint,
-    );
-  }
-  
   void collect() {
     if (!isCollected) {
       isCollected = true;
-      gameRef.addScore(pointValue);  // 增加分數
+      gameRef.collectCoin();
       removeFromParent();
     }
   }
-
+  
   @override
-  void onCollisionStart(
-    Set<Vector2> intersectionPoints,
-    PositionComponent other,
-  ) {
+  void onCollisionStart(Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollisionStart(intersectionPoints, other);
     
     if (other is Player) {
       collect();
     }
+  }
+  
+  @override
+  void render(Canvas canvas) {
+    canvas.save();
+    canvas.translate(size.x / 2, size.y / 2);
+    
+    // 繪製金幣
+    final paint = Paint()
+      ..color = Colors.amber
+      ..style = PaintingStyle.fill;
+    
+    canvas.drawCircle(Offset.zero, size.x / 2, paint);
+    
+    // 添加金幣邊框
+    final borderPaint = Paint()
+      ..color = Colors.amber.shade800
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    
+    canvas.drawCircle(Offset.zero, size.x / 2, borderPaint);
+    
+    canvas.restore();
   }
 } 

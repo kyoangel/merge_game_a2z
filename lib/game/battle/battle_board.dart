@@ -520,7 +520,7 @@ class _BattleBoardState extends State<BattleBoard> {
                       Icon(Icons.warning, color: Colors.red),
                       const SizedBox(width: 4),
                       Text(
-                        '敵人: ${_maxEnemyCount}x${String.fromCharCode('A'.codeUnitAt(0) + _maxEnemyLevel - 1)}',
+                        '關卡: $currentLevel',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
