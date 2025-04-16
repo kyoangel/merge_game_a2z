@@ -433,6 +433,7 @@ class _BattleBoardState extends State<BattleBoard> {
       _gameOver = false;
       _battleResult = null;
       _buttonsVisible = true;
+      bullets.clear(); // 清除所有子彈
       
       // 清空棋盤
       battleBoard = List.generate(totalRows, (row) {
@@ -466,6 +467,16 @@ class _BattleBoardState extends State<BattleBoard> {
       }
       
       currentLevel++;
+    });
+  }
+
+  void _handleRetryButtonClick() {
+    setState(() {
+      _gameOver = false;
+      _battleResult = null;
+      _buttonsVisible = true;
+      _restoreBattleState();
+      bullets.clear(); // 清除所有子彈
     });
   }
 
@@ -558,14 +569,7 @@ class _BattleBoardState extends State<BattleBoard> {
                                   )
                                 else
                                   ElevatedButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        _gameOver = false;
-                                        _battleResult = null;
-                                        _buttonsVisible = true;
-                                        _restoreBattleState();
-                                      });
-                                    },
+                                    onPressed: _handleRetryButtonClick,
                                     child: const Text('重新挑戰'),
                                   ),
                               ],
@@ -880,6 +884,7 @@ class _BattleBoardState extends State<BattleBoard> {
         _isBattleStarted = false;
         _updatePlayerMaxUnitLevel();
         _winStreak++;
+        bullets.clear(); // 清除所有子彈
       });
     } else if (!hasPlayer) {
       setState(() {
@@ -888,6 +893,7 @@ class _BattleBoardState extends State<BattleBoard> {
         _isBattleStarted = false;
         _restoreBattleState();
         _winStreak = 0;
+        bullets.clear(); // 清除所有子彈
       });
     }
   }
