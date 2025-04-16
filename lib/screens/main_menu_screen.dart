@@ -9,6 +9,8 @@ class MainMenuScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final gameManager = context.watch<GameManager>();
+    
     return Scaffold(
       body: Center(
         child: Column(
@@ -19,7 +21,11 @@ class MainMenuScreen extends StatelessWidget {
                 context.read<GameManager>().startBattle();
                 Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (context) => const BattleScreen(),
+                    builder: (context) => BattleScreen(
+                      coins: gameManager.coins,
+                      winStreak: gameManager.winStreak,
+                      currentLevel: gameManager.currentLevel,
+                    ),
                   ),
                 );
               },

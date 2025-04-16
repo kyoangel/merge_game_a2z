@@ -2,7 +2,16 @@ import 'package:flutter/material.dart';
 import '../game/battle/battle_board.dart';
 
 class BattleScreen extends StatelessWidget {
-  const BattleScreen({super.key});
+  final int coins;
+  final int winStreak;
+  final int currentLevel;
+
+  const BattleScreen({
+    super.key,
+    required this.coins,
+    required this.winStreak,
+    required this.currentLevel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +23,11 @@ class BattleScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: const BattleBoard(),
+      body: BattleBoard(
+        coins: coins,
+        winStreak: winStreak,
+        currentLevel: currentLevel,
+      ),
     );
   }
 } 

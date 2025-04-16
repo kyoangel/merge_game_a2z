@@ -5,7 +5,16 @@ import 'dart:async';
 import 'dart:math';
 
 class BattleBoard extends StatefulWidget {
-  const BattleBoard({super.key});
+  final int coins;
+  final int winStreak;
+  final int currentLevel;
+
+  const BattleBoard({
+    super.key,
+    required this.coins,
+    required this.winStreak,
+    required this.currentLevel,
+  });
 
   @override
   State<BattleBoard> createState() => _BattleBoardState();
@@ -29,7 +38,9 @@ class _BattleBoardState extends State<BattleBoard> {
   DateTime? _lastEnemyBulletTime;
   static const bulletCooldown = Duration(seconds: 1); // 子弹冷却时间
   
-  int coins = 0; // 金币数量
+  late int coins;
+  late int winStreak;
+  late int currentLevel;
   static const int unitCost = 100; // 新增角色所需金币
   static const int victoryReward = 200; // 胜利奖励
   static const int unitKillReward = 50; // 击杀敌人奖励
@@ -38,15 +49,12 @@ class _BattleBoardState extends State<BattleBoard> {
   String? _battleResult;
   
   // 關卡系統
-  int currentLevel = 1;
   int _playerMaxUnitLevel = 1; // 追蹤玩家最高單位等級
   
   // 保存玩家和敵方單位狀態
   List<List<BattleUnit?>>? _savedPlayerUnits;
   List<List<BattleUnit?>>? _savedEnemyUnits;
 
-  int _winStreak = 0; // 追蹤連勝數
-  static const int maxWinStreak = 10; // 最大連勝數
   int _maxEnemyLevel = 1; // 追蹤敵方最高等級
   int _maxEnemyCount = 3; // 追蹤敵方最大數量
   
@@ -56,20 +64,20 @@ class _BattleBoardState extends State<BattleBoard> {
     
     // 計算敵人數量
     final baseEnemyCount = 3;
-    final winStreakBonus = (_winStreak ~/ 2);
+    final winStreakBonus = (winStreak ~/ 2);
     final newEnemyCount = min(baseEnemyCount + winStreakBonus, 10);
     _maxEnemyCount = max(_maxEnemyCount, newEnemyCount); // 確保敵人數量不會減少
     
     // 計算敵人等級
     final playerMaxLevel = _playerMaxUnitLevel;
-    final winStreakLevelBonus = (_winStreak ~/ 3);
+    final winStreakLevelBonus = (winStreak ~/ 3);
     final newEnemyLevel = playerMaxLevel + winStreakLevelBonus;
     _maxEnemyLevel = max(_maxEnemyLevel, newEnemyLevel); // 確保敵人等級不會降低
     
     final enemyLevelVariation = 2;
     
     // 計算敵人屬性加成
-    final winStreakStatBonus = 1.0 + (_winStreak * 0.1);
+    final winStreakStatBonus = 1.0 + (winStreak * 0.1);
     
     final enemies = <EnemyConfig>[];
     
@@ -101,7 +109,7 @@ class _BattleBoardState extends State<BattleBoard> {
     
     // 計算獎勵
     final baseReward = 200;
-    final winStreakRewardBonus = _winStreak * 50;
+    final winStreakRewardBonus = winStreak * 50;
     final reward = baseReward + winStreakRewardBonus;
     
     return LevelConfig(
@@ -117,6 +125,9 @@ class _BattleBoardState extends State<BattleBoard> {
   @override
   void initState() {
     super.initState();
+    coins = widget.coins;
+    winStreak = widget.winStreak;
+    currentLevel = widget.currentLevel;
     _initializeBoard();
     _startAutoAttack();
   }
@@ -135,8 +146,6 @@ class _BattleBoardState extends State<BattleBoard> {
         unitName: enemy.unitName,
       );
     }
-
-    coins = 1000;
   }
 
   void _startAutoAttack() {
@@ -510,7 +519,7 @@ class _BattleBoardState extends State<BattleBoard> {
                       Icon(Icons.star, color: Colors.yellow),
                       const SizedBox(width: 4),
                       Text(
-                        '連勝: $_winStreak',
+                        '連勝: $winStreak',
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -883,7 +892,7 @@ class _BattleBoardState extends State<BattleBoard> {
         coins += victoryReward;
         _isBattleStarted = false;
         _updatePlayerMaxUnitLevel();
-        _winStreak++;
+        winStreak++;
         bullets.clear(); // 清除所有子彈
       });
     } else if (!hasPlayer) {
@@ -892,7 +901,7 @@ class _BattleBoardState extends State<BattleBoard> {
         _battleResult = "失败！";
         _isBattleStarted = false;
         _restoreBattleState();
-        _winStreak = 0;
+        winStreak = 0;
         bullets.clear(); // 清除所有子彈
       });
     }

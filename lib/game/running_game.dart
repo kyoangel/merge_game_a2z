@@ -3,48 +3,54 @@ import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'dart:math' show Random;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../game/game_manager.dart';
 import 'components/player.dart';
 import 'components/road.dart';
 import 'components/coin.dart';
 import 'components/obstacle.dart';
 
-// 添加回調函數類型定義
-typedef VoidCallback = void Function();
+typedef GameStateCallback = void Function({
+  required int coins,
+  required int winStreak,
+  required int currentLevel,
+});
 
 class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
   late final Player player;
   late final Road road;
-  double gameSpeed = 400; // 增加遊戲速度
+  double gameSpeed = 400;
   final Random random = Random();
   
   // 遊戲狀態
   double _gameTime = 0;
   int score = 0;
-  static const double gameDuration = 10; // 縮短遊戲時間到10秒
-  static const double finishLinePosition = gameDuration * 400; // 調整終點線位置
+  static const double gameDuration = 10;
+  static const double finishLinePosition = gameDuration * 400;
   double distanceTraveled = 0;
   
   // 遊戲進度
   int coins = 0;
   int winStreak = 0;
   int currentLevel = 1;
-  static const int coinValue = 50; // 每個金幣的價值
+  static const int coinValue = 50;
   
   // 生成間隔
-  static const double coinSpawnInterval = 0.5; // 每0.5秒生成一個金幣
-  static const double obstacleSpawnInterval = 0.8; // 每0.8秒生成一個障礙物
+  static const double coinSpawnInterval = 0.5;
+  static const double obstacleSpawnInterval = 0.8;
   double _lastCoinSpawnTime = 0;
   double _lastObstacleSpawnTime = 0;
   
   // 回調函數
-  VoidCallback? onVictory;
+  final GameStateCallback onGameComplete;
+  final VoidCallback? onGameStateChanged;
   
-  // 構造函數，接收初始狀態和回調函數
   RunningGame({
+    required this.onGameComplete,
+    this.onGameStateChanged,
     this.coins = 0,
     this.winStreak = 0,
     this.currentLevel = 1,
-    this.onVictory,
   });
   
   @override
@@ -72,7 +78,6 @@ class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
     _gameTime += dt;
     distanceTraveled += gameSpeed * dt;
     
-    // 動態生成金幣和障礙物
     if (_gameTime - _lastCoinSpawnTime >= coinSpawnInterval) {
       spawnCoin();
       _lastCoinSpawnTime = _gameTime;
@@ -83,7 +88,6 @@ class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
       _lastObstacleSpawnTime = _gameTime;
     }
     
-    // 檢查是否到達終點
     if (distanceTraveled >= finishLinePosition) {
       victory();
     }
@@ -105,7 +109,6 @@ class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
     score += points;
   }
   
-  // 收集金幣
   void collectCoin() {
     coins += coinValue;
     addScore(10);
@@ -113,17 +116,24 @@ class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
   
   void gameOver() {
     pauseEngine();
-    overlays.add('gameOver');
+    // 遊戲失敗時也進入戰鬥場景，但不增加連勝
+    onGameComplete(
+      coins: coins,
+      winStreak: 0, // 失敗時重置連勝
+      currentLevel: currentLevel,
+    );
+    onGameStateChanged?.call(); // 通知遊戲狀態變更
   }
   
   void victory() {
     pauseEngine();
-    overlays.add('victory');
-    
-    // 調用回調函數，進入戰鬥畫面
-    if (onVictory != null) {
-      onVictory!();
-    }
+    // 直接調用回調函數，進入戰鬥場景
+    onGameComplete(
+      coins: coins,
+      winStreak: winStreak + 1, // 勝利時增加連勝
+      currentLevel: currentLevel + 1, // 勝利時增加關卡
+    );
+    onGameStateChanged?.call(); // 通知遊戲狀態變更
   }
   
   @override
@@ -133,8 +143,6 @@ class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
     
     player.reset();
     
-    overlays.remove('gameOver');
-    overlays.remove('victory');
     _gameTime = 0;
     _lastCoinSpawnTime = 0;
     _lastObstacleSpawnTime = 0;
@@ -149,7 +157,6 @@ class RunningGame extends FlameGame with DragCallbacks, HasCollisionDetection {
   }
 }
 
-// 資訊欄組件
 class GameInfoOverlay extends PositionComponent with HasGameRef<RunningGame> {
   @override
   Future<void> onLoad() async {
@@ -159,13 +166,11 @@ class GameInfoOverlay extends PositionComponent with HasGameRef<RunningGame> {
   
   @override
   void render(Canvas canvas) {
-    // 繪製背景
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.x, size.y),
       Paint()..color = Colors.black.withOpacity(0.7),
     );
     
-    // 繪製文字
     final textPainter = TextPainter(
       text: TextSpan(
         children: [
