@@ -114,23 +114,68 @@ class GameDataManager {
   static Future<List<List<BattleUnit?>>> _loadUnits(String key) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      
+
       if (kIsWeb) {
         await prefs.reload();
       }
-      
+
       final unitsJson = prefs.getString(key);
       if (unitsJson == null) {
         return List.generate(totalRows, (row) => List.generate(totalCols, (col) => null));
       }
 
-      final List<List<dynamic>> decodedData = jsonDecode(unitsJson);
-      return decodedData.map((row) {
-        return row.map((unitJson) {
-          if (unitJson == null) return null;
-          return BattleUnit.fromJson(unitJson as Map<String, dynamic>);
-        }).toList();
-      }).toList();
+      final dynamic decodedData = jsonDecode(unitsJson);
+
+      // Check if the top-level data is a List
+      if (decodedData is! List) {
+         print('警告: 讀取單位數據時發現非預期頂層格式，返回空棋盤。Key: $key');
+         return List.generate(totalRows, (row) => List.generate(totalCols, (col) => null));
+      }
+
+      final List<dynamic> outerList = decodedData;
+      List<List<BattleUnit?>> loadedUnits = [];
+
+      for (final dynamic rowData in outerList) {
+        if (rowData is! List) {
+          print('警告: 讀取單位數據時發現非預期行格式，跳過此行。數據: $rowData');
+          // Add an empty row or skip, depending on desired behavior. Adding empty row to maintain grid structure.
+          loadedUnits.add(List.generate(totalCols, (col) => null));
+          continue;
+        }
+
+        final List<dynamic> innerList = rowData;
+        List<BattleUnit?> rowUnits = [];
+
+        for (final dynamic unitJson in innerList) {
+          if (unitJson == null) {
+            rowUnits.add(null);
+          } else if (unitJson is Map<String, dynamic>) {
+            try {
+              rowUnits.add(BattleUnit.fromJson(unitJson));
+            } catch (e) {
+              print('警告: 讀取單位數據時從JSON轉換BattleUnit失敗，跳過此單元。數據: $unitJson, 錯誤: $e');
+              rowUnits.add(null);
+            }
+          } else {
+            print('警告: 讀取單位數據時發現非預期單元格數據格式，跳過此單元。數據: $unitJson');
+            rowUnits.add(null);
+          }
+        }
+        // Ensure each row has the correct number of columns
+        while (rowUnits.length < totalCols) {
+            rowUnits.add(null);
+        }
+        loadedUnits.add(rowUnits);
+      }
+
+      // Ensure the correct number of rows
+       while (loadedUnits.length < totalRows) {
+            loadedUnits.add(List.generate(totalCols, (col) => null));
+       }
+
+
+      return loadedUnits;
+
     } catch (e) {
       print('讀取單位數據時出錯: $e');
       return List.generate(totalRows, (row) => List.generate(totalCols, (col) => null));
