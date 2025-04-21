@@ -797,25 +797,32 @@ class _BattleBoardState extends State<BattleBoard> {
 
   Widget _buildCell(int row, int col) {
     final unit = battleBoard[row][col];
-    final isSelected = selectedUnit != null && selectedUnit!.position.row == row && selectedUnit!.position.col == col;
+    final isSelected = selectedUnit != null &&
+        selectedUnit!.position.row == row &&
+        selectedUnit!.position.col == col;
 
     return DragTarget<BattleUnit>(
       onAcceptWithDetails: (details) {
         final receivedUnit = details.data;
         final targetUnit = battleBoard[row][col];
 
-        print('DragTarget onAccept: Received unit level: ${receivedUnit.level}, Target unit level: ${targetUnit?.level}');
+        print(
+            'DragTarget onAccept: Received unit level: ${receivedUnit.level}, Target unit level: ${targetUnit?.level}');
 
         if (targetUnit != null && targetUnit.type == UnitType.player) {
           // 目標位置有單位
-          if (targetUnit.level == receivedUnit.level && !identical(targetUnit, receivedUnit)) { // 修改合成條件，只判斷 level，並防止與自身合成
+          if (targetUnit.level == receivedUnit.level &&
+              !identical(targetUnit, receivedUnit)) {
+            // 修改合成條件，只判斷 level，並防止與自身合成
             // ✅ 合成條件：等級相同且不是同一個單位
             print('Merge condition met. Merging...');
             // 合成發生在目標單位上
             targetUnit.merge(receivedUnit);
             // 移除被拖曳的單位
-            battleBoard[receivedUnit.position.row][receivedUnit.position.col] = null;
-            print('Merge successful via DragTarget. New unit level: ${targetUnit.level}');
+            battleBoard[receivedUnit.position.row][receivedUnit.position.col] =
+                null;
+            print(
+                'Merge successful via DragTarget. New unit level: ${targetUnit.level}');
           } else {
             // ❌ 等級不同或嘗試與自身合成，交換位置
             print('Merge condition not met or same unit. Swapping positions.');
@@ -824,7 +831,8 @@ class _BattleBoardState extends State<BattleBoard> {
 
             // 更新 board
             battleBoard[row][col] = receivedUnit;
-            battleBoard[receivedUnitOldPosition.row][receivedUnitOldPosition.col] = targetUnit;
+            battleBoard[receivedUnitOldPosition.row]
+                [receivedUnitOldPosition.col] = targetUnit;
 
             // 更新單位的位置屬性
             receivedUnit.updatePosition(Position(row, col));
@@ -838,7 +846,8 @@ class _BattleBoardState extends State<BattleBoard> {
 
           // 更新 board
           battleBoard[row][col] = receivedUnit;
-          battleBoard[receivedUnitOldPosition.row][receivedUnitOldPosition.col] = null;
+          battleBoard[receivedUnitOldPosition.row]
+              [receivedUnitOldPosition.col] = null;
 
           // 更新單位的位置屬性
           receivedUnit.updatePosition(Position(row, col));
@@ -851,66 +860,60 @@ class _BattleBoardState extends State<BattleBoard> {
         });
       },
       builder: (context, candidateData, rejectedData) {
-        return Container(
+        final cellContent = Container(
           margin: const EdgeInsets.all(4.0),
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey[300]!),
             color: _getCellColor(unit, row < playerStartRow),
           ),
           child: unit != null
-              ? Draggable<BattleUnit>(
-                  data: unit,
-                  feedback: Material(
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      color: Colors.blue.withOpacity(0.5),
-                      child: Center(
-                        child: Text(
+              ? GestureDetector(
+                  onTap: () {
+                    if (row < playerStartRow) {
+                      _handleCellTap(row, col);
+                    }
+                  },
+                  child: Center(
+                    // 用 Center + Column 取代 FittedBox 會比較穩定
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
                           unit.type == UnitType.player ? unit.unitName : 'E',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: const TextStyle(fontWeight: FontWeight.bold,
+                          fontSize: 28),
                         ),
-                      ),
-                    ),
-                  ),
-                  childWhenDragging: Container(),
-                  child: GestureDetector(
-                    onTap: () {
-                      if (row < playerStartRow) {
-                        _handleCellTap(row, col);
-                      }
-                    },
-                    child: FittedBox(
-                      fit: BoxFit.contain,
-                      child: Padding(
-                        padding: const EdgeInsets.all(4.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              unit.type == UnitType.player
-                                  ? unit.unitName
-                                  : 'E',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              '${unit.health}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
+                        Text(
+                          '${unit.health}',
+                          style: const TextStyle(fontSize: 24),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 )
               : null,
         );
+
+        return unit != null
+            ? Draggable<BattleUnit>(
+                data: unit,
+                feedback: Material(
+                  child: Container(
+                    width: 50,
+                    height: 50,
+                    color: Colors.blue.withOpacity(0.5),
+                    child: Center(
+                      child: Text(
+                        unit.type == UnitType.player ? unit.unitName : 'E',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ),
+                childWhenDragging: Container(), // 空白格
+                child: cellContent,
+              )
+            : cellContent;
       },
     );
   }
@@ -971,13 +974,17 @@ class _BattleBoardState extends State<BattleBoard> {
         });
       } else if (unit.type == UnitType.player) {
         // 點擊另一個玩家角色
-        if (selectedUnit!.level == unit.level && !identical(selectedUnit, unit)) { // 修改合成條件，並防止與自身合成
+        if (selectedUnit!.level == unit.level &&
+            !identical(selectedUnit, unit)) {
+          // 修改合成條件，並防止與自身合成
           // 合成
-          print('Attempting to merge units at (${selectedUnit!.position.row}, ${selectedUnit!.position.col}) and (${row}, ${col})');
+          print(
+              'Attempting to merge units at (${selectedUnit!.position.row}, ${selectedUnit!.position.col}) and (${row}, ${col})');
           // 合成發生在目標單位上
           unit.merge(selectedUnit!);
           // 移除被合併的單位
-          battleBoard[selectedUnit!.position.row][selectedUnit!.position.col] = null;
+          battleBoard[selectedUnit!.position.row][selectedUnit!.position.col] =
+              null;
           print('Merge successful. New unit level: ${unit.level}');
           // 更新 UI
           setState(() {
