@@ -758,7 +758,7 @@ class _BattleBoardState extends State<BattleBoard> {
                     final col = index % cols;
                     final unit = battleBoard[row][col];
                     final isEnemyArea = row < playerStartRow;
-                    return _buildCell(unit, isEnemyArea, index);
+                    return _buildCell(row, col);
                   },
                 ),
               ),
@@ -795,120 +795,123 @@ class _BattleBoardState extends State<BattleBoard> {
     );
   }
 
-  Widget _buildCell(BattleUnit? unit, bool isEnemy, int index) {
-    return GestureDetector(
-      onTap: () {
-        if (!isEnemy) {
-          // 只允許在玩家區域操作
-          _handleCellTap(unit);
+  Widget _buildCell(int row, int col) {
+    final unit = battleBoard[row][col];
+    final isSelected = selectedUnit != null && selectedUnit!.position.row == row && selectedUnit!.position.col == col;
+
+    return DragTarget<BattleUnit>(
+      onAcceptWithDetails: (details) {
+        final receivedUnit = details.data;
+        final targetUnit = battleBoard[row][col];
+
+        print('DragTarget onAccept: Received unit level: ${receivedUnit.level}, Target unit level: ${targetUnit?.level}');
+
+        if (targetUnit != null && targetUnit.type == UnitType.player) {
+          // 目標位置有單位
+          if (targetUnit.level == receivedUnit.level && !identical(targetUnit, receivedUnit)) { // 修改合成條件，只判斷 level，並防止與自身合成
+            // ✅ 合成條件：等級相同且不是同一個單位
+            print('Merge condition met. Merging...');
+            // 合成發生在目標單位上
+            targetUnit.merge(receivedUnit);
+            // 移除被拖曳的單位
+            battleBoard[receivedUnit.position.row][receivedUnit.position.col] = null;
+            print('Merge successful via DragTarget. New unit level: ${targetUnit.level}');
+          } else {
+            // ❌ 等級不同或嘗試與自身合成，交換位置
+            print('Merge condition not met or same unit. Swapping positions.');
+            final receivedUnitOldPosition = receivedUnit.position;
+            final targetUnitOldPosition = targetUnit.position;
+
+            // 更新 board
+            battleBoard[row][col] = receivedUnit;
+            battleBoard[receivedUnitOldPosition.row][receivedUnitOldPosition.col] = targetUnit;
+
+            // 更新單位的位置屬性
+            receivedUnit.updatePosition(Position(row, col));
+            targetUnit.updatePosition(receivedUnitOldPosition);
+            print('Swap successful.');
+          }
+        } else {
+          // 目標位置沒有單位，直接移動
+          print('Target cell is empty. Moving unit.');
+          final receivedUnitOldPosition = receivedUnit.position;
+
+          // 更新 board
+          battleBoard[row][col] = receivedUnit;
+          battleBoard[receivedUnitOldPosition.row][receivedUnitOldPosition.col] = null;
+
+          // 更新單位的位置屬性
+          receivedUnit.updatePosition(Position(row, col));
+          print('Move successful.');
         }
+
+        // 更新 UI
+        setState(() {
+          selectedUnit = null; // 拖曳完成後取消選取
+        });
       },
-      child: DragTarget<BattleUnit>(
-        onWillAccept: (receivedUnit) {
-          // 只允许在玩家区域拖放
-          return !isEnemy;
-        },
-        onAccept: (receivedUnit) {
-          setState(() {
-            // 计算目标位置
-            final row = index ~/ cols;
-            final col = index % cols;
-            final newPosition = Position(row, col);
-
-            // 检查是否可以合成
-            final targetUnit = battleBoard[newPosition.row][newPosition.col];
-            if (targetUnit != null && targetUnit.type == UnitType.player) {
-              if (targetUnit.unitName == receivedUnit.unitName &&
-                  targetUnit.level == receivedUnit.level) {
-                // ✅ 合成條件：名稱與等級都相同
-                targetUnit.merge(receivedUnit);
-                battleBoard[receivedUnit.position.row]
-                    [receivedUnit.position.col] = null;
-              } else {
-                // 🔁 名稱或等級不同，交換位置
-                final from = receivedUnit.position;
-                final to = targetUnit.position;
-
-                if (from != to) {
-                  receivedUnit.updatePosition(to);
-                  targetUnit.updatePosition(from);
-
-                  battleBoard[from.row][from.col] = targetUnit;
-                  battleBoard[to.row][to.col] = receivedUnit;
-                }
-              }
-            } else {
-              // ➡️ 普通移動
-              final from = receivedUnit.position;
-              battleBoard[from.row][from.col] = null;
-              battleBoard[newPosition.row][newPosition.col] = receivedUnit;
-              receivedUnit.updatePosition(newPosition);
-            }
-          });
-        },
-        builder: (context, candidateData, rejectedData) {
-          return Container(
-            margin: const EdgeInsets.all(4.0),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[300]!),
-              color: _getCellColor(unit, isEnemy),
-            ),
-            child: unit != null
-                ? Draggable<BattleUnit>(
-                    data: unit,
-                    feedback: Material(
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        color: Colors.blue.withOpacity(0.5),
-                        child: Center(
-                          child: Text(
-                            unit.type == UnitType.player ? unit.unitName : 'E',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
+      builder: (context, candidateData, rejectedData) {
+        return Container(
+          margin: const EdgeInsets.all(4.0),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[300]!),
+            color: _getCellColor(unit, row < playerStartRow),
+          ),
+          child: unit != null
+              ? Draggable<BattleUnit>(
+                  data: unit,
+                  feedback: Material(
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      color: Colors.blue.withOpacity(0.5),
+                      child: Center(
+                        child: Text(
+                          unit.type == UnitType.player ? unit.unitName : 'E',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  childWhenDragging: Container(),
+                  child: GestureDetector(
+                    onTap: () {
+                      if (row < playerStartRow) {
+                        _handleCellTap(row, col);
+                      }
+                    },
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              unit.type == UnitType.player
+                                  ? unit.unitName
+                                  : 'E',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
+                            Text(
+                              '${unit.health}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    childWhenDragging: Container(),
-                    child: GestureDetector(
-                      onTap: () {
-                        if (!isEnemy) {
-                          _handleCellTap(unit);
-                        }
-                      },
-                      child: FittedBox(
-                        fit: BoxFit.contain,
-                        child: Padding(
-                          padding: const EdgeInsets.all(4.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                unit.type == UnitType.player
-                                    ? unit.unitName
-                                    : 'E',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              Text(
-                                '${unit.health}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                : null,
-          );
-        },
-      ),
+                  ),
+                )
+              : null,
+        );
+      },
     );
   }
 
@@ -947,37 +950,53 @@ class _BattleBoardState extends State<BattleBoard> {
     });
   }
 
-  void _handleCellTap(BattleUnit? unit) {
-    setState(() {
-      if (unit != null && unit.type == UnitType.player) {
-        print(
-            '角色被点击: 类型=${unit.type}, 位置=(${unit.position.row}, ${unit.position.col})');
+  void _handleCellTap(int row, int col) {
+    final unit = battleBoard[row][col];
 
-        selectedUnit = selectedUnit == unit ? null : unit;
-
-        Position? target = _findNearestEnemy(unit.position);
-        if (target != null) {
-          unit.attack(target);
-          bullets.add(Bullet(
-            shooter: unit,
-            position: unit.position,
-            damage: unit.attackPower,
-            targetPosition: target,
-          ));
+    if (selectedUnit == null && unit != null && unit.type == UnitType.player) {
+      // 第一次點擊玩家角色，選取
+      setState(() {
+        selectedUnit = unit;
+      });
+    } else if (selectedUnit != null) {
+      // 如果已經選取了一個單位
+      if (unit == null) {
+        // 點擊空單元格：移動選取的玩家角色到新的位置
+        final oldPosition = selectedUnit!.position;
+        battleBoard[oldPosition.row][oldPosition.col] = null;
+        battleBoard[row][col] = selectedUnit;
+        selectedUnit!.updatePosition(Position(row, col)); // 使用傳入的 row, col
+        setState(() {
+          selectedUnit = null;
+        });
+      } else if (unit.type == UnitType.player) {
+        // 點擊另一個玩家角色
+        if (selectedUnit!.level == unit.level && !identical(selectedUnit, unit)) { // 修改合成條件，並防止與自身合成
+          // 合成
+          print('Attempting to merge units at (${selectedUnit!.position.row}, ${selectedUnit!.position.col}) and (${row}, ${col})');
+          // 合成發生在目標單位上
+          unit.merge(selectedUnit!);
+          // 移除被合併的單位
+          battleBoard[selectedUnit!.position.row][selectedUnit!.position.col] = null;
+          print('Merge successful. New unit level: ${unit.level}');
+          // 更新 UI
+          setState(() {
+            selectedUnit = null;
+            // 不需要手動更新 targetUnit 在 grid 中的位置，因為 merge 操作修改了 unit 物件本身，grid 引用的是同一個物件
+          });
+        } else {
+          // 等級不同或點擊的是同一個單位，重新選取
+          setState(() {
+            selectedUnit = unit;
+          });
         }
-      } else if (selectedUnit != null) {
-        // 移动选中的玩家角色到新的位置
-        final newPosition = Position(
-          battleBoard.indexWhere((row) => row.contains(unit)),
-          battleBoard.firstWhere((row) => row.contains(unit)).indexOf(unit),
-        );
-        battleBoard[selectedUnit!.position.row][selectedUnit!.position.col] =
-            null;
-        battleBoard[newPosition.row][newPosition.col] = selectedUnit;
-        selectedUnit!.updatePosition(newPosition);
-        selectedUnit = null;
+      } else {
+        // 點擊敵人或其他類型的單位，取消選取
+        setState(() {
+          selectedUnit = null;
+        });
       }
-    });
+    }
   }
 
   Color _getCellColor(BattleUnit? unit, bool isEnemy) {
